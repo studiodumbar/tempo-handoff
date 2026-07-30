@@ -402,7 +402,9 @@ export function section(title, children, { actions = [], id = null, collapsed = 
     actions.length ? h("span", { class: "section-actions" }, ...actions) : null);
   const body = h("div", { class: "section-body", id: bodyId },
     h("div", { class: "section-inner" }, ...children));
-  const el = h("div", { class: `section${open ? "" : " closed"}` }, head, body);
+  // the id is on the element too, not just the storage key — a section is a
+  // real landmark to link to, style and assert against
+  const el = h("div", { class: `section${open ? "" : " closed"}`, id: key }, head, body);
 
   toggle.addEventListener("click", () => {
     const nowClosed = el.classList.toggle("closed");
@@ -420,7 +422,7 @@ export function button(label, { variant = "ghost", iconName, onClick, title, wid
     "aria-label": ariaLabel ?? (label ? null : title),
   },
     iconName ? icon(iconName) : null,
-    label ? h("span", {}, label) : null);
+    label ? h("span", { class: "btn-label" }, label) : null);
   if (onClick) b.addEventListener("click", onClick);
   if (title) tip(b, title);
   return b;

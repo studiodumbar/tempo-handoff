@@ -1,10 +1,12 @@
-// hatch·visual — the default mode: a poster studio. Place ONE target —
-// an animation, a shape primitive, a GLB product, or imported vector art —
-// frame it, tune the scene variables, and export a still as PNG or SVG.
+// TEMPO · Visual — make a braille or block picture and export it.
 //
-// Same engine, same panels, no timeline: the pool settles on a single
-// target (switching targets is the house rank-matched morph), the orbit
-// camera frames it, and the export path re-renders at exact comp pixels.
+// One source at a time: an image, a 3D model or a procedural animation, drawn
+// by the shared particle pool through the glyph pass. Three files come out of
+// the same picture — PNG at exact canvas pixels, SVG as one shape per mark,
+// and a 3D relief where every mark that prints becomes a raised solid.
+//
+// Same engine as Motion, no timeline: the pool settles on a single source
+// (switching is the house rank-matched morph) and the orbit camera frames it.
 
 import * as THREE from "three";
 import { OrbitControls } from "../vendor/OrbitControls.js";
@@ -16,9 +18,12 @@ import { ASSET_DEFS, loadAssetMode, assetModeFromBuffer } from "./assets.js";
 import { imageModeFromFile } from "./vectorImport.js";
 import { PhotoOverlay } from "./photo.js";
 import { exportSVG, download } from "./exportStill.js";
+import { exportMesh } from "./exportMesh.js";
 import { setAssetResolver, clipRuntime, baseModeFor } from "./sequence.js";
 import { defaultProject, defaultTransition, cleanBrailleScene } from "./store.js";
-import { h, icon, toast } from "./ui/dom.js";
+import {
+  h, icon, toast, showMenu, confirmAction, showShortcuts, isMac, modKey,
+} from "./ui/dom.js";
 import { appNav } from "./ui/appnav.js";
 import {
   NumberField, SelectField, SwitchField, ColorField, SegmentedField,
@@ -29,7 +34,8 @@ THREE.ColorManagement.enabled = false;
 
 // ---- config ------------------------------------------------------------------
 
-const STORAGE_KEY = "hatchfusion.visual.v1";
+const STORAGE_KEY = "tempo.visual.v1";
+const LEGACY_KEY = "hatchfusion.visual.v1";
 
 function defaultConfig() {
   return {
@@ -38,7 +44,14 @@ function defaultConfig() {
     target: "asset:plate",
     params: {},          // per-target param overrides: { [target]: {…} }
     scene: { ...defaultProject().scene, bg: "#000000", ink: "#ffffff" },
-    export: { scale: 2, transparent: false },
+    export: {
+      format: "png",
+      scale: 2,
+      transparent: false,
+      depth: 2,          // how far a mark stands off the tile, mm
+      base: true,        // the backing plate that makes it one solid
+      baseDepth: 1.2,
+    },
   };
 }
 
@@ -46,7 +59,7 @@ let config = loadConfig();
 
 function loadConfig() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY);
     if (raw) {
       const p = JSON.parse(raw);
       if (p && p.version === 1) {
@@ -435,61 +448,12 @@ function refreshLabel() {
   const cur = baseModeFor(clipForTarget(config.target));
   stageLabel.textContent = "";
   stageLabel.append(
-    h("b", {}, "Visual"),
+    h("b", {}, cur ? cur.label : "Loading…"),
     h("span", {}, `${comp.width} × ${comp.height}`),
-    h("span", {}, cur ? cur.label : "loading…"),
   );
 }
 
 window.addEventListener("resize", layout);
-
-// ---- exports ------------------------------------------------------------------
-
-function stillName(ext) {
-  const cur = baseModeFor(clipForTarget(config.target));
-  return `hatch-${(cur?.label || "visual").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.${ext}`;
-}
-
-function exportPNG() {
-  const { width: W, height: H } = config.comp;
-  const s = config.export.scale || 1;
-  const scn = config.scene;
-  controls.enabled = false;
-  renderer.setPixelRatio(1);
-  renderer.setSize(W * s, H * s, false);
-  bufW = W * s; bufH = H * s;
-  camera.aspect = W / H;
-  camera.updateProjectionMatrix();
-  terminal.cellW = scn.cellW;
-  terminal.cellH = scn.cellH;
-  terminal.setSize(W, H, W * s, H * s);
-  occlusion.setSize((W * s) / 2, (H * s) / 2);
-  terminal.glyph.mat.uniforms.uBgAlpha.value = config.export.transparent ? 0 : 1;
-
-  const phase = anim
-    ? Math.min(1, (clock - anim.start) / Math.max(1e-3, VISUAL_TRANS.duration))
-    : 1;
-  renderFrame(sceneTime(clock), phase, 0);
-
-  canvas.toBlob((blob) => {
-    if (blob) { download(blob, stillName("png")); toast(`PNG exported — ${W * s} × ${H * s}`); }
-    else toast("PNG export failed", { kind: "error" });
-    terminal.glyph.mat.uniforms.uBgAlpha.value = 1;
-    controls.enabled = true;
-    layout();
-  }, "image/png");
-}
-
-function doExportSVG() {
-  // the live loop keeps the sub-pixel buffer current; replay it as vectors
-  const scn = { ...config.scene };
-  const svg = exportSVG({
-    renderer, terminal, scene: scn, comp: config.comp,
-    transparent: config.export.transparent,
-  });
-  download(new Blob([svg], { type: "image/svg+xml" }), stillName("svg"));
-  toast("SVG exported — true vector dots & blocks");
-}
 
 // ---- the loop -----------------------------------------------------------------
 
@@ -514,17 +478,534 @@ function frame() {
   renderFrame(sceneTime(clock), phase, dt);
 }
 
+const EXPORT_KEY = isMac ? "⌘E" : "Ctrl E";
+let exportBtnRef = null;
+
 // ================= panel =========================================================
+//
+// Visual makes a braille or block picture and exports it. The panel is ordered
+// by that job, not by the engine underneath it:
+//
+//   Source    what is being drawn, and how to change it
+//   Look      the marks themselves — the controls you reach for constantly
+//   Adjust    the source's own parameters, closed by default
+//   Canvas    output size and colour
+//   3D        only when the source is a model, and only then
+//   Export    pinned at the bottom, always in reach
+//
+// 3D is a capability that serves the export. It is not the organising idea, so
+// it does not get a permanent seat.
+
+const SHORTCUTS = [
+  { title: "Export", keys: [[EXPORT_KEY, "Export"], [`⇧ ${EXPORT_KEY}`, "Next format"]] },
+  { title: "Source", keys: [["S", "Change source"], ["O", "Open image"]] },
+  { title: "View", keys: [["R", "Reset view"], ["H", "Hide panels"]] },
+  { title: "Help", keys: [["?", "Shortcuts"]] },
+];
 
 const panel = document.getElementById("vpanel");
-panel.append(appNav("visual"));
+panel.append(appNav("visual", SHORTCUTS));
 const panelMain = h("div", { class: "v-panel-main" });
+const panelBody = h("div", { class: "panel-body" });
+const panelFoot = h("div", { class: "panel-foot" });
+panelMain.append(panelBody, panelFoot);
 panel.append(panelMain);
+
+function commit(relayout) { saveConfig(); if (relayout) layout(); }
+
+const sceneNum = (key, o, relayout = false) => NumberField({
+  get: () => config.scene[key],
+  set: (v) => { config.scene[key] = v; commit(relayout); }, ...o });
+const sceneColor = (key, label) => ColorField({
+  label,
+  get: () => config.scene[key],
+  set: (v) => { config.scene[key] = v; commit(false); } });
+const compNum = (key, o) => NumberField({
+  get: () => config.comp[key],
+  set: (v) => { config.comp[key] = Math.round(v); commit(true); }, ...o });
+
+// ---- the source picker ----------------------------------------------------------
+//
+// Three kinds of source lived in one flat list of about a hundred entries, with
+// images — what this mode is for — as two of them. They are grouped and
+// filterable now, and images lead.
+
+const KINDS = [
+  { id: "image", heading: "Images", icon: "image" },
+  { id: "model", heading: "3D models", icon: "box" },
+  { id: "anim", heading: "Animations", icon: "wave" },
+];
+
+function sourceEntries() {
+  return [
+    ...imports.map((i) => ({ kind: "image", value: `asset:${i.key}`, label: i.label })),
+    ...ASSET_DEFS.map((d) => ({ kind: "model", value: `asset:${d.key}`, label: d.label })),
+    ...MODES.map((m) => ({ kind: "anim", value: `mode:${m.key}`, label: m.label })),
+  ];
+}
+
+function currentSource() {
+  return sourceEntries().find((e) => e.value === config.target) || null;
+}
+
+function sourceKind() {
+  return currentSource()?.kind ?? "image";
+}
+
+function openSourceMenu(anchor) {
+  const entries = sourceEntries();
+  const items = [];
+  for (const k of KINDS) {
+    const group = entries.filter((e) => e.kind === k.id);
+    if (!group.length) continue;
+    items.push({ heading: k.heading });
+    for (const e of group) {
+      items.push({
+        label: e.label,
+        checked: e.value === config.target,
+        action: () => { setTarget(e.value); buildPanel(); },
+      });
+    }
+  }
+  showMenu(items, anchor, {
+    search: true,
+    placeholder: "Find a source",
+    minWidth: Math.max(220, anchor.getBoundingClientRect().width),
+  });
+}
+
+/** The current source, as a button that opens the picker. */
+function sourceButton() {
+  const cur = currentSource();
+  const kind = KINDS.find((k) => k.id === (cur?.kind ?? "image"));
+  const btn = h("button", {
+    class: "source-btn", type: "button",
+    "aria-haspopup": "menu", "aria-expanded": "false",
+    "aria-label": `Source: ${cur ? cur.label : "loading"}`,
+  },
+    icon(kind.icon, "source-kind"),
+    h("span", { class: "source-name" }, cur ? cur.label : "Loading…"),
+    icon("chevronDown", "source-chev"));
+  btn.addEventListener("click", () => openSourceMenu(btn));
+  return btn;
+}
+
+// ---- panel ------------------------------------------------------------------------
+
+function buildPanel() {
+  panelBody.textContent = "";
+  panelFoot.textContent = "";
+  panelBody.append(...sourceSection(), ...lookSection(), adjustSection(),
+    ...canvasSection(), ...spatialSection());
+  panelFoot.append(...exportFoot());
+}
+
+function sourceSection() {
+  return [section("Source", [
+    h("div", { class: "source-row" }, sourceButton()),
+    h("div", { class: "btn-row" },
+      button("Open image", {
+        iconName: "image", variant: "subtle", wide: true,
+        title: "PNG, JPG or SVG",
+        onClick: () => pickFile(".svg,.png,.jpg,.jpeg"),
+      }),
+      button("Import model", {
+        iconName: "box", variant: "subtle", wide: true,
+        title: "GLB or glTF, for this session",
+        onClick: () => pickFile(".glb,.gltf"),
+      })),
+  ], { id: "v-source" })];
+}
+
+/** The controls that change what the marks look like — the ones reached for
+    constantly. Everything here is one level deep, no nesting. */
+function lookSection() {
+  return [section("Look", [
+    row("Style", styleField()),
+    row("Grid", SegmentedField({
+      label: "Grid",
+      get: () => gridPreset(),
+      set: (v) => {
+        const [w, hgt] = GRID_PRESETS[v].cell;
+        config.scene.cellW = w;
+        config.scene.cellH = hgt;
+        commit(true);
+        buildPanel();
+      },
+      options: GRID_PRESETS.map((p, i) => ({
+        value: i, label: p.label, tip: `${p.cell[0]} × ${p.cell[1]} px cells`,
+      })),
+    })),
+    grid2(
+      sceneNum("cellW", { min: 4, max: 40, step: 1, prefix: { text: "W", tip: "Cell width" } }, true),
+      sceneNum("cellH", { min: 8, max: 64, step: 1, prefix: { text: "H", tip: "Cell height" } }, true),
+    ),
+    grid2(sceneColor("bg", "Background"), sceneColor("ink", "Ink")),
+    grid2(
+      sceneNum("dotR", { min: 0.4, max: 1.6, step: 0.02, prefix: { text: "dot", tip: "Dot size" } }),
+      sceneNum("dotThresh", { min: 0.01, max: 0.35, step: 0.005, prefix: { text: "thresh", tip: "Light a dot needs before it prints" } }),
+    ),
+    grid2(
+      sceneNum("gain", { min: 0.3, max: 3, step: 0.05, prefix: { text: "exposure", tip: "Overall brightness" } }),
+      sceneNum("baseSize", { min: 0.006, max: 0.06, step: 0.001, prefix: { text: "mark", tip: "Size of each underlying mark" } }),
+    ),
+    ...(config.scene.blocks ? [grid2(
+      sceneNum("blockLo", { min: 0.15, max: 6, step: 0.05, prefix: { text: "block lo", tip: "Energy where a cell starts to solidify" } }),
+      sceneNum("blockHi", { min: 0.4, max: 6.5, step: 0.05, prefix: { text: "block hi", tip: "Energy that prints a full solid block" } }),
+    )] : []),
+    grid2(
+      sceneNum("gapX", { min: 0, max: 0.25, step: 0.005, prefix: { text: "seam x", tip: "Gap between columns" } }),
+      sceneNum("gapY", { min: 0, max: 0.25, step: 0.005, prefix: { text: "seam y", tip: "Gap between rows" } }),
+    ),
+  ], { id: "v-look" })];
+}
+
+const GRID_PRESETS = [
+  { label: "Fine", cell: [6, 12] },
+  { label: "Default", cell: [8, 16] },
+  { label: "Coarse", cell: [12, 24] },
+];
+
+/** Which preset the current cell size matches, or -1 for a custom size — the
+    segmented control then shows nothing selected, which is the truth. */
+function gridPreset() {
+  return GRID_PRESETS.findIndex(
+    (p) => p.cell[0] === config.scene.cellW && p.cell[1] === config.scene.cellH);
+}
+
+/** The source's own parameters. Closed by default: they belong to whatever is
+    loaded, they change wholesale when the source does, and most sessions never
+    touch them. */
+function adjustSection() {
+  const base = baseModeFor(clipForTarget(config.target));
+  const kids = [];
+  let overrides = 0;
+
+  if (!base) {
+    kids.push(h("div", { class: "loading-row" }, icon("spinner", "spin"), "Sampling…"));
+  } else {
+    const t = config.target;
+    if (!config.params[t]) config.params[t] = {};
+    const P = config.params[t];
+    const cells = Object.entries(base.params).map(([key, spec]) => {
+      const f = NumberField({
+        get: () => (P[key] !== undefined ? P[key] : spec.value),
+        set: (v) => { P[key] = v; mark(); saveConfig(); },
+        min: spec.min, max: spec.max, step: spec.step,
+        prefix: { text: key, tip: `${key} — double-click to reset` },
+      });
+      const prefixEl = f.el.querySelector(".field-prefix");
+      const mark = () => prefixEl?.classList.add("overridden");
+      if (P[key] !== undefined) { mark(); overrides++; }
+      // Resetting one value was right-click only, which nothing announced.
+      // Double-click is the discoverable gesture and the tooltip says so.
+      const reset = () => {
+        if (P[key] === undefined) return;
+        delete P[key];
+        saveConfig();
+        f.refresh();
+        prefixEl?.classList.remove("overridden");
+        buildPanel();
+      };
+      f.el.addEventListener("dblclick", reset);
+      f.el.addEventListener("contextmenu", (e) => { e.preventDefault(); reset(); });
+      return f;
+    });
+    for (let k = 0; k < cells.length; k += 2) kids.push(grid2(cells[k], cells[k + 1] ?? null));
+    if (!cells.length) {
+      kids.push(h("div", { class: "state compact" },
+        icon("sliders"), h("p", {}, "Nothing to adjust")));
+    }
+  }
+
+  const actions = [];
+  if (overrides) {
+    const resetBtn = h("button", { class: "section-link", type: "button" }, "Reset");
+    resetBtn.addEventListener("click", async () => {
+      const yes = await confirmAction({
+        title: "Reset parameters?",
+        body: `${overrides} changed value${overrides > 1 ? "s" : ""} will go back to the source's defaults.`,
+        confirmLabel: "Reset",
+      });
+      if (!yes) return;
+      config.params[config.target] = {};
+      saveConfig();
+      buildPanel();
+    });
+    actions.push(resetBtn);
+  }
+  return section("Adjust", kids, { id: "v-adjust", collapsed: true, actions });
+}
+
+// Ratios rather than words: "Square / Portrait / Landscape" does not fit the
+// field column at any panel width, and a ratio is the more precise label
+// anyway — it says what you get.
+const CANVAS_PRESETS = [
+  { label: "1:1", w: 1080, h: 1080, tip: "Square — 1080 × 1080" },
+  { label: "9:16", w: 1080, h: 1920, tip: "Portrait — 1080 × 1920" },
+  { label: "16:9", w: 1920, h: 1080, tip: "Landscape — 1920 × 1080" },
+];
+
+function canvasSection() {
+  return [section("Canvas", [
+    // a segmented control, not three buttons: it has to SAY which shape the
+    // canvas currently is, and buttons cannot
+    row("Shape", SegmentedField({
+      label: "Canvas shape",
+      get: () => CANVAS_PRESETS.findIndex(
+        (p) => p.w === config.comp.width && p.h === config.comp.height),
+      set: (v) => {
+        config.comp.width = CANVAS_PRESETS[v].w;
+        config.comp.height = CANVAS_PRESETS[v].h;
+        commit(true);
+        buildPanel();
+      },
+      options: CANVAS_PRESETS.map((p, i) => ({ value: i, label: p.label, tip: p.tip })),
+    })),
+    grid2(
+      compNum("width", { min: 128, max: 4096, step: 2, prefix: { text: "W", tip: "Width in pixels" } }),
+      compNum("height", { min: 128, max: 4096, step: 2, prefix: { text: "H", tip: "Height in pixels" } }),
+    ),
+  ], { id: "v-canvas" })];
+}
+
+/** Camera and depth. Present only when the source is a model — for an image
+    every control in here except the field of view does nothing, and a dead
+    control is worse than a missing one. */
+function spatialSection() {
+  if (sourceKind() !== "model") return [];
+  return [section("3D", [
+    grid2(
+      sceneNum("fov", { min: 15, max: 100, step: 1, unit: "°", prefix: { icon: "camera", tip: "Field of view" } }),
+      sceneNum("solidity", { min: 0, max: 1, step: 0.01, prefix: { text: "solid", tip: "How much a model hides its own far side" } }),
+    ),
+    grid2(
+      sceneNum("occBias", { min: 0.01, max: 0.3, step: 0.005, prefix: { text: "bias", tip: "Slack before a mark counts as hidden" } }),
+      null,
+    ),
+    h("div", { class: "btn-row" },
+      button("Reset view", {
+        iconName: "fit", variant: "subtle", wide: true,
+        title: "Front-on, recentred — R", onClick: resetView,
+      })),
+  ], { id: "v-3d", collapsed: true })];
+}
+
+// ---- export ------------------------------------------------------------------------
+
+const FORMATS = [
+  { value: "png", label: "PNG", ext: "png", what: "Raster at exact canvas pixels" },
+  { value: "svg", label: "SVG", ext: "svg", what: "One shape per dot and block" },
+  { value: "stl", label: "STL", ext: "stl", what: "Relief solid, for print or CAD" },
+  { value: "obj", label: "OBJ", ext: "obj", what: "Relief solid, as text geometry" },
+];
+
+const fmt = () => FORMATS.find((f) => f.value === config.export.format) || FORMATS[0];
+const is3D = () => fmt().value === "stl" || fmt().value === "obj";
+
+/** The one primary action on this surface, pinned so it is never scrolled
+    past, with a quiet line saying exactly what the file will be. */
+function exportFoot() {
+  const meta = h("div", { class: "foot-meta" });
+  const refreshMeta = () => {
+    meta.textContent = "";
+    const f = fmt();
+    const { width: W, height: H } = config.comp;
+    if (f.value === "png") {
+      const s = config.export.scale || 1;
+      meta.append(h("span", {}, `${W * s} × ${H * s} px`), h("span", {}, f.what));
+    } else if (f.value === "svg") {
+      meta.append(h("span", {}, `${W} × ${H}`), h("span", {}, f.what));
+    } else {
+      const mm = Math.round(100 * (H / W));
+      meta.append(h("span", {}, `100 × ${mm} × ${(config.export.depth + config.export.baseDepth).toFixed(1)} mm`),
+        h("span", {}, f.what));
+    }
+  };
+
+  const opts = h("div", { class: "foot-opts" });
+  const refreshOpts = () => {
+    opts.textContent = "";
+    const f = fmt();
+    if (f.value === "png") {
+      opts.append(
+        row("Scale", SelectField({
+          label: "Export scale",
+          get: () => config.export.scale,
+          set: (v) => { config.export.scale = v; commit(false); refreshMeta(); },
+          options: [1, 2, 3, 4].map((s) => ({ value: s, label: `×${s}` })),
+        })),
+        row("Transparent", SwitchField({
+          label: "Transparent background",
+          get: () => !!config.export.transparent,
+          set: (v) => { config.export.transparent = v; commit(false); },
+        })));
+    } else if (f.value === "svg") {
+      opts.append(row("Transparent", SwitchField({
+        label: "Transparent background",
+        get: () => !!config.export.transparent,
+        set: (v) => { config.export.transparent = v; commit(false); },
+      })));
+    } else {
+      opts.append(
+        row("Relief", NumberField({
+          label: "Relief depth in millimetres",
+          get: () => config.export.depth,
+          set: (v) => { config.export.depth = v; commit(false); refreshMeta(); },
+          min: 0.2, max: 20, step: 0.1, unit: " mm",
+        })),
+        row("Backing", SwitchField({
+          label: "Backing plate",
+          get: () => !!config.export.base,
+          set: (v) => { config.export.base = v; commit(false); refreshMeta(); },
+        }), { tipText: "A flat tile behind the marks, so the file is one solid" }));
+    }
+  };
+
+  const exportBtn = button("Export", {
+    variant: "primary", wide: true, iconName: "download",
+    onClick: () => runExport(),
+  });
+  exportBtn.classList.add("large");
+
+  const formatField = SelectField({
+    label: "Export format",
+    get: () => config.export.format,
+    set: (v) => {
+      config.export.format = v;
+      commit(false);
+      refreshOpts();
+      refreshMeta();
+      syncExportLabel();
+    },
+    options: FORMATS.map((f) => ({ value: f.value, label: f.label })),
+  });
+
+  const syncExportLabel = () => {
+    exportBtn.querySelector(".btn-label").textContent = `Export ${fmt().label}`;
+  };
+
+  refreshOpts();
+  refreshMeta();
+  syncExportLabel();
+  exportBtnRef = exportBtn;
+
+  return [
+    row("Format", formatField),
+    opts,
+    h("div", { class: "foot-cta" }, exportBtn, h("span", { class: "kbd" }, EXPORT_KEY)),
+    meta,
+  ];
+}
+
+function stillName(ext) {
+  const cur = currentSource();
+  const slug = (cur?.label || "visual").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  return `tempo-${slug}.${ext}`;
+}
+
+/** Every export runs through here so the busy state, the error state and the
+    naming are identical whichever format is chosen. */
+async function runExport() {
+  if (exportBtnRef?.disabled) return;
+  const f = fmt();
+  const busy = toast(`Exporting ${f.label}…`, { kind: "busy", duration: 0 });
+  if (exportBtnRef) exportBtnRef.disabled = true;
+  try {
+    if (f.value === "png") {
+      const blob = await pngBlob();
+      const s = config.export.scale || 1;
+      download(blob, stillName("png"));
+      busy.dismiss();
+      toast(`PNG exported — ${config.comp.width * s} × ${config.comp.height * s}`);
+    } else if (f.value === "svg") {
+      download(new Blob([svgText()], { type: "image/svg+xml" }), stillName("svg"));
+      busy.dismiss();
+      toast("SVG exported — real vector dots and blocks");
+    } else {
+      const { blob, relief } = meshExport(f.value);
+      download(blob, stillName(f.ext));
+      busy.dismiss();
+      toast(`${f.label} exported — ${relief.triangles.toLocaleString()} triangles`);
+    }
+  } catch (err) {
+    console.error(err);
+    busy.dismiss();
+    toast(`${f.label} export failed — ${err.message || err}`, { kind: "error", duration: 5000 });
+  } finally {
+    if (exportBtnRef) exportBtnRef.disabled = false;
+  }
+}
+
+/** Render the comp at exact export pixels and read the canvas back. Restores
+    the viewport sizing whatever happens, so a failed export never leaves the
+    stage at 4x with the controls disabled. */
+function pngBlob() {
+  const { width: W, height: H } = config.comp;
+  const s = config.export.scale || 1;
+  const scn = config.scene;
+  controls.enabled = false;
+  try {
+    renderer.setPixelRatio(1);
+    renderer.setSize(W * s, H * s, false);
+    bufW = W * s; bufH = H * s;
+    camera.aspect = W / H;
+    camera.updateProjectionMatrix();
+    terminal.cellW = scn.cellW;
+    terminal.cellH = scn.cellH;
+    terminal.setSize(W, H, W * s, H * s);
+    occlusion.setSize((W * s) / 2, (H * s) / 2);
+    terminal.glyph.mat.uniforms.uBgAlpha.value = config.export.transparent ? 0 : 1;
+
+    const phase = anim
+      ? Math.min(1, (clock - anim.start) / Math.max(1e-3, VISUAL_TRANS.duration))
+      : 1;
+    renderFrame(sceneTime(clock), phase, 0);
+
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("canvas gave no data"))),
+        "image/png");
+    });
+  } finally {
+    terminal.glyph.mat.uniforms.uBgAlpha.value = 1;
+    controls.enabled = true;
+    layout();
+  }
+}
+
+/** Both vector exports read back the glyph pass's sub-pixel buffer, so that
+    buffer has to hold the CURRENT picture. Drawing one frame first makes the
+    export independent of where the animation loop happens to be — without it
+    an export fired right after a resize reads a buffer that has been resized
+    but not yet drawn into, and writes an almost empty file. */
+function refreshBuffer() {
+  const phase = anim
+    ? Math.min(1, (clock - anim.start) / Math.max(1e-3, VISUAL_TRANS.duration))
+    : 1;
+  renderFrame(sceneTime(clock), phase, 0);
+}
+
+function svgText() {
+  refreshBuffer();
+  return exportSVG({
+    renderer, terminal, scene: { ...config.scene }, comp: config.comp,
+    transparent: config.export.transparent,
+  });
+}
+
+function meshExport(format) {
+  refreshBuffer();
+  return exportMesh({
+    renderer, terminal, scene: { ...config.scene }, comp: config.comp,
+    depth: config.export.depth, base: !!config.export.base,
+    baseDepth: config.export.baseDepth,
+  }, format);
+}
 
 /** The house style, as a two-way segmented control. Either side restores the
     clean-braille look; the difference between them is whether hot cells are
-    allowed to solidify into blocks. It RESETS the look — size, colours and
-    camera are the piece's own and survive. */
+    allowed to solidify into blocks. It resets the LOOK — canvas size, colours
+    and camera are the piece's own and survive. */
 function styleField() {
   return SegmentedField({
     label: "Style",
@@ -540,39 +1021,10 @@ function styleField() {
       buildPanel();
     },
     options: [
-      { value: 0, label: "Braille", tip: "Dots only — nothing solidifies" },
+      { value: 0, label: "Braille", tip: "Dots only, nothing solidifies" },
       { value: 1, label: "Blocks", tip: "Hot cells print solid blocks" },
     ],
   });
-}
-
-function commit(relayout) { saveConfig(); if (relayout) layout(); }
-
-const sceneNum = (key, o, relayout = false) => NumberField({
-  get: () => config.scene[key],
-  set: (v) => { config.scene[key] = v; commit(relayout); }, ...o });
-const sceneSwitch = (key, label) => SwitchField({
-  label,
-  get: () => !!config.scene[key],
-  set: (v) => { config.scene[key] = key === "blocks" ? (v ? 1 : 0) : v; commit(false); } });
-const sceneSelect = (key, options) => SelectField({
-  get: () => config.scene[key] || 0,
-  set: (v) => { config.scene[key] = v; commit(false); }, options });
-const sceneColor = (key) => ColorField({
-  get: () => config.scene[key],
-  set: (v) => { config.scene[key] = v; commit(false); } });
-const compNum = (key, o) => NumberField({
-  get: () => config.comp[key],
-  set: (v) => { config.comp[key] = Math.round(v); commit(true); }, ...o });
-
-// Images lead the list — they are what this editor is for. Models and the
-// generative animations follow, so the long tail never buries the short one.
-function targetOptions() {
-  return [
-    ...imports.map((i) => ({ value: `asset:${i.key}`, label: `image · ${i.label}` })),
-    ...ASSET_DEFS.map((d) => ({ value: `asset:${d.key}`, label: `3D · ${d.label}` })),
-    ...MODES.map((m) => ({ value: `mode:${m.key}`, label: `animation · ${m.label}` })),
-  ];
 }
 
 function resetView() {
@@ -581,179 +1033,53 @@ function resetView() {
   controls.update();
 }
 
-// One panel, no tabs: place, scene and export are a single scrollable list
-// of sections (the advanced ones start collapsed, like the inspector).
-function buildPanel() {
-  panelMain.textContent = "";
-  const b = h("div", { class: "panel-body" });
-  panelMain.append(b);
-  b.append(row("Style", styleField()), ...placeTab(), ...sceneTab(), ...exportTab());
-}
+// ---- keyboard ----------------------------------------------------------------------
 
-function placeTab() {
-  const out = [];
-  out.push(section("Source", [
-    h("div", { class: "btn-row" },
-      button("Open image\u2026", { iconName: "image", variant: "primary", wide: true,
-        title: "PNG, JPG or SVG \u2014 traced into braille",
-        onClick: () => fileInput.click() })),
-    row("Showing", SelectField({
-      get: () => config.target,
-      set: (v) => { setTarget(v); buildPanel(); },
-      options: targetOptions(),
-    })),
-    h("div", { class: "note" },
-      "Images are the default here. The list also holds 3D models and the "
-      + "generative animations \u2014 imports last for this session."),
-  ], { id: "v-target" }));
+window.addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+  const mod = modKey(e);
 
-  out.push(paramsSection());
-  return out;
-}
-
-function paramsSection() {
-  const base = baseModeFor(clipForTarget(config.target));
-  const kids = [];
-  if (!base) {
-    kids.push(h("div", { class: "note busy" }, icon("spinner", "spin"), "Sampling asset…"));
-  } else {
-    const t = config.target;
-    if (!config.params[t]) config.params[t] = {};
-    const P = config.params[t];
-    const entries = Object.entries(base.params);
-    const cells = entries.map(([key, spec]) => {
-      const f = NumberField({
-        get: () => (P[key] !== undefined ? P[key] : spec.value),
-        set: (v) => { P[key] = v; prefixEl?.classList.add("overridden"); saveConfig(); },
-        min: spec.min, max: spec.max, step: spec.step, prefix: { text: key, tip: key },
-      });
-      const prefixEl = f.el.querySelector(".field-prefix");
-      if (P[key] !== undefined) prefixEl?.classList.add("overridden");
-      f.el.addEventListener("contextmenu", (e) => {
-        e.preventDefault();
-        if (P[key] === undefined) return;
-        delete P[key];
-        saveConfig(); f.refresh(); prefixEl?.classList.remove("overridden");
-      });
-      return f;
-    });
-    for (let k = 0; k < cells.length; k += 2) kids.push(grid2(cells[k], cells[k + 1] ?? null));
+  if (mod && e.code === "KeyE") {
+    e.preventDefault();
+    if (e.shiftKey) cycleFormat();
+    else runExport();
+  } else if (!mod && e.key === "?") {
+    e.preventDefault();
+    showShortcuts(SHORTCUTS);
+  } else if (!mod && e.code === "KeyR") {
+    resetView();
+  } else if (!mod && e.code === "KeyH") {
+    document.body.classList.toggle("ui-hidden");
+    layout();
+  } else if (!mod && e.code === "KeyS") {
+    e.preventDefault();
+    panel.querySelector(".source-btn")?.click();
+  } else if (!mod && e.code === "KeyO") {
+    e.preventDefault();
+    pickFile(".svg,.png,.jpg,.jpeg");
   }
-  const resetBtn = h("button", { class: "section-link" }, "Reset");
-  resetBtn.addEventListener("click", () => {
-    config.params[config.target] = {};
-    saveConfig(); buildPanel();
-  });
-  return section("Parameters", kids, { id: "v-params", actions: [resetBtn] });
-}
+});
 
-function sceneTab() {
-  const out = [];
-  const is3D = parseTarget(config.target).kind === "asset"
-            && !(baseModeFor(clipForTarget(config.target)) || {}).image;
-
-  out.push(section("Canvas", [
-    grid2(
-      compNum("width", { min: 128, max: 4096, step: 2, prefix: { text: "W", tip: "Width, px" } }),
-      compNum("height", { min: 128, max: 4096, step: 2, prefix: { text: "H", tip: "Height, px" } }),
-    ),
-    h("div", { class: "btn-row" },
-      ...[["Square", 1080, 1080], ["Portrait", 1080, 1920], ["Landscape", 1920, 1080]]
-        .map(([label, w, hgt]) => button(label, {
-          variant: "subtle",
-          title: `${w} x ${hgt}`,
-          onClick: () => { config.comp.width = w; config.comp.height = hgt; commit(true); buildPanel(); },
-        }))),
-    grid2(sceneColor("bg"), sceneColor("ink")),
-    h("div", { class: "note" }, "Background and ink."),
-  ], { id: "v-comp" }));
-
-  out.push(section("Grid", [
-    h("div", { class: "note" },
-      "The character cell everything is drawn into. Smaller cells = finer, "
-      + "more detailed marks."),
-    grid2(
-      sceneNum("cellW", { min: 4, max: 40, step: 1, prefix: { text: "W", tip: "Cell width, px — smaller is finer" } }, true),
-      sceneNum("cellH", { min: 8, max: 64, step: 1, prefix: { text: "H", tip: "Cell height, px — usually 2x the width" } }, true),
-    ),
-    h("div", { class: "btn-row" },
-      ...[["Fine", 6, 12], ["Default", 8, 16], ["Coarse", 12, 24]].map(([label, w, hgt]) =>
-        button(label, {
-          variant: "subtle",
-          title: `${w} x ${hgt} px cells`,
-          onClick: () => { config.scene.cellW = w; config.scene.cellH = hgt; commit(true); buildPanel(); },
-        }))),
-    grid2(
-      sceneNum("gapX", { min: 0, max: 0.25, step: 0.005, prefix: { text: "seam x", tip: "The gap a terminal leaves between columns" } }),
-      sceneNum("gapY", { min: 0, max: 0.25, step: 0.005, prefix: { text: "seam y", tip: "The gap a terminal leaves between rows" } }),
-    ),
-  ], { id: "v-grid" }));
-
-  out.push(section("Ink", [
-    grid2(
-      sceneNum("dotR", { min: 0.4, max: 1.6, step: 0.02, prefix: { text: "dot", tip: "Braille dot size" } }),
-      sceneNum("dotThresh", { min: 0.01, max: 0.35, step: 0.005, prefix: { text: "thresh", tip: "How much light a dot needs before it prints — higher is sparser and crisper" } }),
-    ),
-    grid2(
-      sceneNum("gain", { min: 0.3, max: 3, step: 0.05, prefix: { text: "exposure", tip: "Overall brightness" } }),
-      sceneNum("baseSize", { min: 0.006, max: 0.06, step: 0.001, prefix: { text: "mark", tip: "Size of each underlying mark" } }),
-    ),
-    h("div", { class: "note" },
-      "Blocks are switched at the top of the panel. These set where they start."),
-    grid2(
-      sceneNum("blockLo", { min: 0.15, max: 6, step: 0.05, prefix: { text: "lo", tip: "Energy where a cell starts to solidify" } }),
-      sceneNum("blockHi", { min: 0.4, max: 6.5, step: 0.05, prefix: { text: "hi", tip: "Energy that prints a full solid block" } }),
-    ),
-  ], { id: "v-ink" }));
-
-  out.push(section("View", [
-    grid2(
-      sceneNum("fov", { min: 15, max: 100, step: 1, unit: "\u00b0", prefix: { icon: "camera", tip: "Field of view" } }),
-      null,
-    ),
-    h("div", { class: "btn-row" },
-      button("Reset view", { iconName: "camera", variant: "subtle", wide: true,
-        title: "Recentre, front-on", onClick: resetView })),
-    ...(is3D ? [
-      h("div", { class: "note" }, "Drag the canvas to orbit. 3D only:"),
-      grid2(
-        sceneNum("solidity", { min: 0, max: 1, step: 0.01, prefix: { text: "solid", tip: "How much a model hides its own far side" } }),
-        sceneNum("occBias", { min: 0.01, max: 0.3, step: 0.005, prefix: { text: "bias", tip: "Slack before a mark counts as hidden" } }),
-      ),
-    ] : [
-      h("div", { class: "note" }, "Drag the canvas to orbit."),
-    ]),
-  ], { id: "v-view", collapsed: !is3D }));
-
-  return out;
-}
-
-function exportTab() {
-  const out = [];
-  out.push(section("Still", [
-    row("Scale", SelectField({
-      get: () => config.export.scale,
-      set: (v) => { config.export.scale = v; commit(false); },
-      options: [1, 2, 3].map((s) => ({ value: s, label: `${s}× — ${config.comp.width * s} px` })),
-    })),
-    row("Transparent", SwitchField({
-      label: "Transparent background",
-      get: () => !!config.export.transparent,
-      set: (v) => { config.export.transparent = v; commit(false); },
-    }), { tipText: "Drop the background — ink only, for placing on any surface" }),
-  ], { id: "v-still" }));
-
-  out.push(h("div", { class: "vfoot" },
-    button("Export PNG", { iconName: "image", variant: "primary", wide: true, onClick: exportPNG }),
-    button("Export SVG", { iconName: "download", variant: "subtle", wide: true, onClick: doExportSVG }),
-    h("div", { class: "note v-note-pad" },
-      "PNG renders the comp at exact pixels. SVG replays the glyph pass as real vectors — a <rect> per block, a <circle> per dot.")));
-  return out;
+function cycleFormat() {
+  const i = FORMATS.findIndex((f) => f.value === config.export.format);
+  config.export.format = FORMATS[(i + 1) % FORMATS.length].value;
+  commit(false);
+  buildPanel();
+  toast(`Export format: ${fmt().label}`, { duration: 1400 });
 }
 
 // ---- file input / drop --------------------------------------------------------
 
 const fileInput = document.getElementById("file");
+
+/** One input, two doors. Narrowing `accept` is the whole difference between
+    "Open image" and "Import model" — without it they were the same button
+    twice. */
+function pickFile(accept) {
+  fileInput.accept = accept;
+  fileInput.click();
+}
 fileInput.addEventListener("change", async () => {
   for (const f of fileInput.files) await importFile(f);
   fileInput.value = "";
@@ -782,10 +1108,13 @@ window.addEventListener("drop", async (e) => {
 
 window.__visual = {
   config, engine, renderer, terminal,
-  setTarget, exportPNG,
+  setTarget, buildPanel,
   save: () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); } catch {} },
-  svg: () => exportSVG({ renderer, terminal, scene: { ...config.scene },
-    comp: config.comp, transparent: config.export.transparent }),
+  // export hooks, so the suite validates the same bytes a user downloads
+  pngBlob,
+  svg: svgText,
+  meshBlob: (format = "stl") => meshExport(format).blob,
+  exportPNG: () => { config.export.format = "png"; return runExport(); },
   // deterministic frame — rAF-independent, for tests and scripted stills
   renderAt: (T) => { anim = null; clock = T; last = performance.now() / 1000;
     renderFrame(sceneTime(T), 1, 0); },
@@ -793,7 +1122,7 @@ window.__visual = {
 
 // Boot fetches exactly what the first frame needs. Everything else — every
 // GLB in the catalogue, every shipped plate — arrives when it is chosen.
-ensureDefaultPlate();          // the plate this editor opens on
+ensureDefaultPlate();          // the plate this mode opens on
 registerShippedImages();       // named in the picker, fetched on demand
 {
   const r = parseTarget(config.target);

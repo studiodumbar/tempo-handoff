@@ -19,9 +19,15 @@ let pass = 0;
 const failures = [];
 let group = "";
 
+const TIMEOUT = 20_000;
+
 const t = async (name, fn) => {
   try {
-    await fn();
+    await Promise.race([
+      fn(),
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error(`timed out after ${TIMEOUT / 1000}s`)), TIMEOUT)),
+    ]);
     pass++;
     process.stdout.write(".");
   } catch (err) {
@@ -263,6 +269,132 @@ if (run("visual")) {
     eq(after, "mode:sphere");
   });
 
+  await t("PNG export produces a valid PNG at comp size", async () => {
+    const res = await page.evaluate(async () => {
+      const blob = await window.__visual.pngBlob();
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      const bmp = await createImageBitmap(blob);
+      return { sig: [...buf.slice(0, 8)], w: bmp.width, h: bmp.height, bytes: buf.length };
+    });
+    eq(res.sig.join(","), "137,80,78,71,13,10,26,10", "PNG signature");
+    const comp = await page.evaluate(() => window.__visual.config.comp);
+    const scale = await page.evaluate(() => window.__visual.config.export.scale);
+    eq(res.w, comp.width * scale, "PNG width");
+    eq(res.h, comp.height * scale, "PNG height");
+    ok(res.bytes > 1000, `PNG was only ${res.bytes} bytes`);
+  });
+
+  await t("SVG export is well-formed and carries real marks", async () => {
+    const svg = await page.evaluate(() => window.__visual.svg());
+    ok(svg.startsWith("<svg"), "does not start with <svg");
+    ok(svg.trim().endsWith("</svg>"), "does not end with </svg>");
+    const marks = (svg.match(/<(rect|circle)/g) || []).length;
+    ok(marks > 20, `only ${marks} marks in the SVG`);
+    const parsed = await page.evaluate((s) => {
+      const d = new DOMParser().parseFromString(s, "image/svg+xml");
+      return d.querySelector("parsererror") ? "parse error" : d.documentElement.tagName;
+    }, svg);
+    eq(parsed, "svg");
+  });
+
+  await t("3D export is a valid binary STL", async () => {
+    const res = await page.evaluate(async () => {
+      const blob = await window.__visual.meshBlob("stl");
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      const dv = new DataView(buf.buffer);
+      return {
+        bytes: buf.length,
+        tris: dv.getUint32(80, true),
+        header: new TextDecoder().decode(buf.slice(0, 5)),
+      };
+    });
+    ok(res.tris > 100, `only ${res.tris} triangles`);
+    // binary STL is exactly 84 bytes of header plus 50 per triangle
+    eq(res.bytes, 84 + res.tris * 50, "STL byte length");
+    eq(res.header, "TEMPO", "STL header");
+  });
+
+  await t("3D export also writes OBJ, and the two agree", async () => {
+    const res = await page.evaluate(async () => {
+      // Both files must come out of ONE picture. meshBlob is synchronous, so
+      // taking both before awaiting keeps the render loop from advancing the
+      // source between them.
+      window.__visual.renderAt(2);
+      const objBlob = window.__visual.meshBlob("obj");
+      const stlBlob = window.__visual.meshBlob("stl");
+      const text = await objBlob.text();
+      const stl = new DataView(await stlBlob.arrayBuffer());
+      return {
+        verts: (text.match(/^v /gm) || []).length,
+        faces: (text.match(/^f /gm) || []).length,
+        stlTris: stl.getUint32(80, true),
+        hasObject: /^o /m.test(text),
+      };
+    });
+    ok(res.faces > 100, `only ${res.faces} faces`);
+    eq(res.verts, res.faces * 3, "OBJ vertices per face");
+    eq(res.faces, res.stlTris, "OBJ faces vs STL triangles");
+    ok(res.hasObject, "OBJ has no object name");
+  });
+
+  await t("the relief stands on a backing plate when asked", async () => {
+    const [withBase, without] = await page.evaluate(async () => {
+      window.__visual.renderAt(2);          // one picture, two settings
+      window.__visual.config.export.base = true;
+      const a = window.__visual.meshBlob("stl");
+      window.__visual.config.export.base = false;
+      const c = window.__visual.meshBlob("stl");
+      const n = async (b) => new DataView(await b.arrayBuffer()).getUint32(80, true);
+      return [await n(a), await n(c)];
+    });
+    // a box is 12 triangles — exactly the difference the plate makes
+    eq(withBase - without, 12, "backing plate triangle count");
+    await page.evaluate(() => { window.__visual.config.export.base = true; });
+  });
+
+  await t("the source picker groups by kind and filters", async () => {
+    await page.click(".source-btn");
+    await page.waitForTimeout(250);
+    const headings = await page.evaluate(() =>
+      [...document.querySelectorAll(".menu-heading")].map((e) => e.textContent));
+    eq(headings.join(", "), "Images, 3D models, Animations");
+    const all = await page.evaluate(() =>
+      [...document.querySelectorAll(".menu-item")].filter((e) => !e.hidden).length);
+    ok(all > 50, `picker showed only ${all} sources`);
+    await page.fill(".menu-search-input", "globe");
+    await page.waitForTimeout(200);
+    const few = await page.evaluate(() =>
+      [...document.querySelectorAll(".menu-item")].filter((e) => !e.hidden).length);
+    ok(few > 0 && few < all, `filter left ${few} of ${all}`);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+  });
+
+  await t("3D controls appear only for a 3D source", async () => {
+    await page.evaluate(() => window.__visual.setTarget("asset:plate"));
+    await page.waitForTimeout(400);
+    eq(await page.evaluate(() => !!document.querySelector("#v-3d")), false,
+      "3D section shown for an image:");
+    await page.evaluate(() => window.__visual.setTarget("asset:mug"));
+    await page.waitForTimeout(900);
+    eq(await page.evaluate(() => !!document.querySelector("#v-3d")), true,
+      "3D section missing for a model:");
+    await page.evaluate(() => window.__visual.setTarget("asset:plate"));
+    await page.waitForTimeout(400);
+  });
+
+  await t("the export action is pinned, not scrolled past", async () => {
+    const inView = await page.evaluate(() => {
+      const btn = document.querySelector(".panel-foot .btn.primary");
+      if (!btn) return "missing";
+      const body = document.querySelector(".v-panel-main .panel-body");
+      body.scrollTop = body.scrollHeight;         // scroll the panel to its end
+      const r = btn.getBoundingClientRect();
+      return r.bottom <= window.innerHeight && r.top >= 0 ? "visible" : "off-screen";
+    });
+    eq(inView, "visible");
+  });
+
   await t("config survives a reload", async () => {
     await page.evaluate(() => { window.__visual.config.comp.width = 720; });
     await page.evaluate(() => window.__visual.save());
@@ -301,7 +433,7 @@ if (run("motion")) {
     await page.evaluate((i) => window.__app.actions.duplicateClip(i), id);
     eq(await clips(), before + 1);
     const dup = await page.evaluate(() => window.__app.store.session.selection.id);
-    await page.evaluate((i) => window.__app.actions.removeClip(i), dup);
+    await page.evaluate((i) => window.__app.actions.removeClip(i, { confirm: false }), dup);
     eq(await clips(), before);
   });
 
@@ -340,6 +472,47 @@ if (run("motion")) {
       return JSON.stringify(back) === json;
     });
     ok(same, "normalize(parse(stringify(p))) !== p");
+  });
+
+  await t("deleting a clip asks first, and Escape cancels", async () => {
+    const before = await clips();
+    const id = await page.evaluate(() => window.__app.store.project.clips[0].id);
+    await page.evaluate((i) => { window.__app.actions.removeClip(i); }, id);
+    await page.waitForTimeout(250);
+    const asking = await page.evaluate(() => !!document.querySelector(".confirm-card"));
+    ok(asking, "no confirmation surfaced");
+    eq(await clips(), before, "the clip went before the question was answered");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(250);
+    eq(await clips(), before, "Escape did not cancel");
+  });
+
+  await t("confirming the delete removes the clip", async () => {
+    const before = await clips();
+    const id = await page.evaluate(() => window.__app.store.project.clips[0].id);
+    await page.evaluate((i) => { window.__app.actions.removeClip(i); }, id);
+    await page.waitForTimeout(250);
+    await page.click(".confirm-card .btn.danger");
+    await page.waitForTimeout(250);
+    eq(await clips(), before - 1);
+    await page.evaluate(() => window.__app.store.undo());
+    eq(await clips(), before, "undo did not restore it");
+  });
+
+  await t("the shortcut sheet opens from the chrome and from ?", async () => {
+    await page.click(".appnav .icon-btn");
+    await page.waitForTimeout(250);
+    const rows = await page.evaluate(() => document.querySelectorAll(".sheet-row").length);
+    ok(rows > 10, `sheet listed only ${rows} shortcuts`);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(250);
+    eq(await page.evaluate(() => !!document.querySelector(".sheet-card")), false);
+    await page.evaluate(() => document.body.focus());
+    await page.keyboard.press("?");
+    await page.waitForTimeout(250);
+    eq(await page.evaluate(() => !!document.querySelector(".sheet-card")), true);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(250);
   });
 
   await t("boots with no console errors", async () => {

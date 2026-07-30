@@ -71,8 +71,12 @@ function readSubpixels(renderer, terminal) {
 /**
  * The glyph pass, replayed in JS over the read-back sub-pixels.
  * Returns { cols, rows, cells: [{col, row(SVG y-down), kind, ...}] }.
+ *
+ * Exported because both vector exports read from it: the SVG writes each cell
+ * as a <rect> or <circle>, and the mesh export extrudes the same cells into
+ * solids. One source of truth means the three files always agree.
  */
-function rasterToGlyphs(renderer, terminal, scn) {
+export function rasterToGlyphs(renderer, terminal, scn) {
   const { v, hot, W, H } = readSubpixels(renderer, terminal);
   const cols = terminal.cols, rows = terminal.rows;
   // peak-preserving falloff dilation of the hot channel — must stay in

@@ -21,7 +21,9 @@ import {
   invalidatePair, pruneRuntimes,
   cameraStateFrom, applyCameraState, evalCamera,
 } from "./sequence.js";
-import { h, toast, showMenu, closeMenus, modKey } from "./ui/dom.js";
+import {
+  h, toast, showMenu, closeMenus, modKey, isMac, confirmAction, showShortcuts,
+} from "./ui/dom.js";
 import { iconButton } from "./ui/fields.js";
 import { appNav } from "./ui/appnav.js";
 import { buildLibraryPanel } from "./ui/library.js";
@@ -435,6 +437,43 @@ function drawTileDebug(T) {
   drawTileGrid(ctx, w, hgt, T);
 }
 
+// ---- shortcuts -------------------------------------------------------------------------
+// They existed only in the README. Now the chrome carries a control that opens
+// this, "?" opens it too, and the sheet is the single place they are written
+// down — so a new key here is a key the interface teaches.
+
+const MOD = isMac ? "\u2318" : "Ctrl";
+const SHORTCUTS = [
+  { title: "Playback", keys: [
+    ["Space", "Play or pause"],
+    ["\u2190 \u2192", "Step one frame"],
+    ["\u21e7 \u2190 \u2192", "Step ten"],
+    ["Home", "To start"],
+    ["End", "To end"],
+  ] },
+  { title: "Edit", keys: [
+    [`${MOD} Z`, "Undo"],
+    [`\u21e7 ${MOD} Z`, "Redo"],
+    [`${MOD} D`, "Duplicate clip"],
+    ["\u232b", "Delete selected"],
+    ["Esc", "Deselect"],
+  ] },
+  { title: "Camera", keys: [
+    ["K", "Keyframe the view"],
+  ] },
+  { title: "Project", keys: [
+    [`${MOD} S`, "Save file"],
+    [`${MOD} O`, "Open file"],
+  ] },
+  { title: "View", keys: [
+    [`${MOD} 1`, "Fit"],
+    [`${MOD} 0`, "100%"],
+    [`${MOD} + -`, "Zoom"],
+    ["H", "Hide panels"],
+  ] },
+  { title: "Help", keys: [["?", "Shortcuts"]] },
+];
+
 // ---- actions ---------------------------------------------------------------------------
 
 // Free-look: grabbing the viewport suspends camera-track following until the
@@ -466,7 +505,19 @@ const actions = {
     if (seg && !store.session.playing) actions.seek(seg.transEnd);
   },
 
-  removeClip(id) {
+  /** Deleting a clip was instant and silent, with undo available but never
+      mentioned. It asks now, by name, and says how to take it back. */
+  async removeClip(id, { confirm = true } = {}) {
+    const clip = store.project.clips.find((c) => c.id === id);
+    if (!clip) return;
+    if (confirm) {
+      const yes = await confirmAction({
+        title: `Delete ${clip.label}?`,
+        body: `${MOD} Z brings it back.`,
+        confirmLabel: "Delete",
+      });
+      if (!yes) return;
+    }
     store.mutate((p) => {
       const i = p.clips.findIndex((c) => c.id === id);
       if (i >= 0) p.clips.splice(i, 1);
@@ -593,10 +644,21 @@ const actions = {
     if (store.session.selection?.id === id) store.select(null);
   },
 
-  newProject() {
+  /** Replacing the whole project used to happen first and explain afterwards,
+      in a toast that was gone in three seconds. */
+  async newProject() {
+    if (store.project.clips.length) {
+      const yes = await confirmAction({
+        title: "Start a new project?",
+        body: `${store.project.name} has ${store.project.clips.length} clip`
+          + `${store.project.clips.length > 1 ? "s" : ""}. ${MOD} Z brings it back.`,
+        confirmLabel: "New project",
+      });
+      if (!yes) return;
+    }
     store.replaceProject(defaultProject());
     invalidatePair();
-    toast("New project — ⌘Z restores the old one");
+    toast("New project");
   },
 
   saveProject() {
@@ -751,6 +813,9 @@ window.addEventListener("keydown", (e) => {
   } else if (e.code === "KeyH") {
     document.body.classList.toggle("ui-hidden");
     layoutViewport();
+  } else if (!mod && e.key === "?") {
+    e.preventDefault();
+    showShortcuts(SHORTCUTS);
   } else if (mod && (e.key === "=" || e.key === "+")) {
     e.preventDefault(); nudgeZoom(1.25);
   } else if (mod && e.key === "-") {
@@ -979,7 +1044,7 @@ if (!store.loadAutosave()) {
 afterProjectLoad();
 
 const inspectorPanel = buildInspector(app);
-inspectorPanel.prepend(appNav("motion"));
+inspectorPanel.prepend(appNav("motion", SHORTCUTS));
 document.body.append(buildLibraryPanel(app), inspectorPanel, buildTimeline(app));
 
 store.on("project", () => {

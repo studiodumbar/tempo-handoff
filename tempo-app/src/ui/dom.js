@@ -109,19 +109,45 @@ export function closeMenus() {
 }
 
 /**
- * items: {label, icon?, hint?, danger?, checked?, disabled?, action}
- *        or "-" for a separator.
+ * items: {label, icon?, hint?, sub?, danger?, checked?, disabled?, action}
+ *        "-" for a separator, or {heading} for a group title.
  * anchor: element (drops below, origin-aware) or {x, y} (context menu).
+ * opts.search: a filter field at the top. Pass it when the list can grow past
+ *   roughly a screenful — a hundred entries with no way to narrow them is a
+ *   list you scroll, not a list you choose from.
  */
-export function showMenu(items, anchor, { minWidth = 148, align = "left" } = {}) {
+export function showMenu(items, anchor, { minWidth = 148, align = "left", search = false, placeholder = "Search" } = {}) {
   closeMenus();
   hideTip();
   const returnFocus = document.activeElement;
   const menu = h("div", { class: "menu", role: "menu", tabindex: "-1" });
   const list = [];
+  const scroller = h("div", { class: search ? "menu-scroll" : "menu-plain" });
+  const rowsFor = [];          // [{ el, text, kind }] for filtering
+
+  let searchInput = null;
+  let emptyState = null;
+  if (search) {
+    searchInput = h("input", {
+      class: "menu-search-input", type: "text", spellcheck: false,
+      autocomplete: "off", placeholder, "aria-label": placeholder,
+    });
+    menu.append(h("div", { class: "menu-search" }, icon("search"), searchInput));
+    emptyState = h("div", { class: "menu-empty" }, "No matches");
+    emptyState.hidden = true;
+  }
+
   for (const it of items) {
     if (it === "-") {
-      menu.append(h("div", { class: "menu-sep", role: "separator" }));
+      const sep = h("div", { class: "menu-sep", role: "separator" });
+      scroller.append(sep);
+      rowsFor.push({ el: sep, kind: "sep" });
+      continue;
+    }
+    if (it.heading) {
+      const head = h("div", { class: "menu-heading" }, it.heading);
+      scroller.append(head);
+      rowsFor.push({ el: head, kind: "heading" });
       continue;
     }
     // checkable entries are radio-like: they report which one is current
@@ -140,22 +166,52 @@ export function showMenu(items, anchor, { minWidth = 148, align = "left" } = {})
         ? h("span", { class: "menu-check" }, it.checked ? icon("check") : "")
         : (it.icon ? icon(it.icon) : h("span", { class: "menu-check" })),
       h("span", { class: "menu-label" }, it.label),
+      it.sub ? h("span", { class: "menu-sub" }, it.sub) : null,
       it.hint ? h("span", { class: "menu-hint" }, it.hint) : null,
     );
     row.addEventListener("click", () => { closeMenus(); it.action?.(); });
-    menu.append(row);
+    scroller.append(row);
+    rowsFor.push({ el: row, kind: "item", text: `${it.label} ${it.sub || ""}`.toLowerCase() });
     if (!it.disabled) list.push(row);
   }
+  menu.append(scroller);
+  if (emptyState) scroller.append(emptyState);
   menu.style.minWidth = `${minWidth}px`;
   document.body.append(menu);
 
+  if (searchInput) {
+    const filter = () => {
+      const q = searchInput.value.trim().toLowerCase();
+      let shown = 0;
+      // a heading survives only if something under it does
+      let pendingHeads = [];
+      for (const r of rowsFor) {
+        if (r.kind !== "item") { r.el.hidden = true; pendingHeads.push(r); continue; }
+        const hit = !q || r.text.includes(q);
+        r.el.hidden = !hit;
+        if (hit) {
+          shown++;
+          for (const hRow of pendingHeads) hRow.el.hidden = false;
+          pendingHeads = [];
+        }
+      }
+      emptyState.hidden = shown > 0;
+      list.length = 0;
+      for (const r of rowsFor) if (r.kind === "item" && !r.el.hidden) list.push(r.el);
+      hot = -1;
+    };
+    searchInput.addEventListener("input", filter);
+    filter();
+  }
+
   // a list taller than the viewport scrolls inside itself rather than
-  // overflowing off-screen (the target dropdown can hold many entries)
+  // overflowing off-screen (the source picker can hold a hundred entries)
   const MARGIN = 8;
-  const maxH = window.innerHeight - MARGIN * 2;
+  const maxH = Math.min(420, window.innerHeight - MARGIN * 2);
   if (menu.offsetHeight > maxH) {
     menu.style.maxHeight = `${maxH}px`;
-    menu.style.overflowY = "auto";
+    if (search) scroller.style.overflowY = "auto";
+    else menu.style.overflowY = "auto";
   }
 
   const mr = menu.getBoundingClientRect();
@@ -180,13 +236,14 @@ export function showMenu(items, anchor, { minWidth = 148, align = "left" } = {})
 
   // Focus enters the menu on open, so Escape and arrows have somewhere to
   // land and a screen reader announces the list rather than the page behind it.
-  menu.focus({ preventScroll: true });
+  (searchInput || menu).focus({ preventScroll: true });
 
   let hot = -1;
   const move = (d) => {
     if (!list.length) return;
     hot = (hot + d + list.length) % list.length;
     list[hot].focus();
+    list[hot].scrollIntoView({ block: "nearest" });
   };
   const onKey = (e) => {
     if (e.key === "Escape") { e.stopPropagation(); closeMenus(); }
@@ -195,6 +252,15 @@ export function showMenu(items, anchor, { minWidth = 148, align = "left" } = {})
     else if (e.key === "Home") { e.preventDefault(); hot = -1; move(1); }
     else if (e.key === "End") { e.preventDefault(); hot = 0; move(-1); }
     else if (e.key === "Tab") { e.preventDefault(); move(e.shiftKey ? -1 : 1); }
+    else if (e.key === "Enter" && document.activeElement === searchInput) {
+      // Enter in the filter takes the first match — the common case is
+      // "type three letters, press Enter"
+      e.preventDefault();
+      list[0]?.click();
+    } else if (searchInput && document.activeElement !== searchInput
+               && e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
+      searchInput.focus();   // typing anywhere in the menu goes to the filter
+    }
   };
   const onDown = (e) => {
     if (!menu.contains(e.target)) closeMenus();
@@ -254,6 +320,118 @@ function dismissToast(el) {
   el.classList.remove("on");
   el.classList.add("off");
   setTimeout(() => el.remove(), 180);
+}
+
+// ---- confirm ---------------------------------------------------------------------------
+// A destructive action states what it will destroy and waits. Escape and the
+// backdrop both cancel; focus moves into the card and returns to the trigger.
+
+let openConfirm = null;
+
+/**
+ * @param {{title: string, body?: string, confirmLabel: string, danger?: boolean}} opts
+ * @returns {Promise<boolean>} true if confirmed
+ */
+export function confirmAction({ title, body, confirmLabel, danger = true }) {
+  openConfirm?.cancel();
+  const returnFocus = document.activeElement;
+
+  return new Promise((resolve) => {
+    const card = h("div", {
+      class: "confirm-card", role: "alertdialog", "aria-modal": "true",
+      "aria-label": title, tabindex: "-1",
+    });
+    const cancelBtn = h("button", { class: "btn subtle", type: "button" }, "Cancel");
+    const goBtn = h("button", {
+      class: `btn ${danger ? "danger" : "primary"}`, type: "button",
+    }, confirmLabel);
+
+    card.append(
+      h("div", { class: "confirm-title" }, title),
+      body ? h("div", { class: "confirm-body" }, body) : null,
+      h("div", { class: "confirm-actions" }, cancelBtn, goBtn),
+    );
+    const veil = h("div", { class: "confirm-veil" }, card);
+    document.body.append(veil);
+    requestAnimationFrame(() => veil.classList.add("on"));
+    goBtn.focus({ preventScroll: true });
+
+    const done = (result) => {
+      if (openConfirm !== api) return;
+      openConfirm = null;
+      window.removeEventListener("keydown", onKey, true);
+      veil.classList.remove("on");
+      setTimeout(() => veil.remove(), 140);
+      if (returnFocus && document.contains(returnFocus)) {
+        returnFocus.focus({ preventScroll: true });
+      }
+      resolve(result);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); done(false); }
+      else if (e.key === "Tab") {
+        // two buttons, so the trap is just "stay between these two"
+        e.preventDefault();
+        (document.activeElement === goBtn ? cancelBtn : goBtn).focus();
+      }
+    };
+    const api = { cancel: () => done(false) };
+    openConfirm = api;
+
+    window.addEventListener("keydown", onKey, true);
+    veil.addEventListener("pointerdown", (e) => { if (e.target === veil) done(false); });
+    cancelBtn.addEventListener("click", () => done(false));
+    goBtn.addEventListener("click", () => done(true));
+  });
+}
+
+// ---- keyboard shortcut sheet ------------------------------------------------------------
+
+let openSheet = null;
+
+/** groups: [{ title, keys: [[combo, what], …] }] */
+export function showShortcuts(groups) {
+  if (openSheet) { openSheet.close(); return; }
+  const returnFocus = document.activeElement;
+  const card = h("div", {
+    class: "sheet-card", role: "dialog", "aria-modal": "true",
+    "aria-label": "Keyboard shortcuts", tabindex: "-1",
+  });
+  const closeBtn = h("button", {
+    class: "icon-btn sheet-close", type: "button", "aria-label": "Close",
+  }, icon("x"));
+  card.append(
+    h("div", { class: "sheet-head" }, h("span", { class: "sheet-title" }, "Shortcuts"), closeBtn),
+    h("div", { class: "sheet-grid" },
+      ...groups.map((g) => h("div", { class: "sheet-group" },
+        h("div", { class: "sheet-group-title" }, g.title),
+        ...g.keys.map(([combo, what]) => h("div", { class: "sheet-row" },
+          h("span", { class: "sheet-what" }, what),
+          h("span", { class: "sheet-keys" },
+            ...combo.split(" ").map((k) => h("kbd", { class: "kbd" }, k))))))),
+    ),
+  );
+  const veil = h("div", { class: "confirm-veil sheet-veil" }, card);
+  document.body.append(veil);
+  requestAnimationFrame(() => veil.classList.add("on"));
+  card.focus({ preventScroll: true });
+
+  const close = () => {
+    openSheet = null;
+    window.removeEventListener("keydown", onKey, true);
+    veil.classList.remove("on");
+    setTimeout(() => veil.remove(), 140);
+    if (returnFocus && document.contains(returnFocus)) {
+      returnFocus.focus({ preventScroll: true });
+    }
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape" || e.key === "?") { e.stopPropagation(); e.preventDefault(); close(); }
+  };
+  window.addEventListener("keydown", onKey, true);
+  veil.addEventListener("pointerdown", (e) => { if (e.target === veil) close(); });
+  closeBtn.addEventListener("click", close);
+  openSheet = { close };
 }
 
 // ---- misc ----------------------------------------------------------------------------
