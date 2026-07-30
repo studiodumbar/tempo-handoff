@@ -122,6 +122,9 @@ export function showMenu(items, anchor, { minWidth = 148, align = "left", search
   const returnFocus = document.activeElement;
   const menu = h("div", { class: "menu", role: "menu", tabindex: "-1" });
   const list = [];
+  // the highlighted row, declared up here because the filter resets it and
+  // the filter runs during setup
+  let hot = -1;
   const scroller = h("div", { class: search ? "menu-scroll" : "menu-plain" });
   const rowsFor = [];          // [{ el, text, kind }] for filtering
 
@@ -238,7 +241,6 @@ export function showMenu(items, anchor, { minWidth = 148, align = "left", search
   // land and a screen reader announces the list rather than the page behind it.
   (searchInput || menu).focus({ preventScroll: true });
 
-  let hot = -1;
   const move = (d) => {
     if (!list.length) return;
     hot = (hot + d + list.length) % list.length;

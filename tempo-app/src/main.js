@@ -676,7 +676,7 @@ const actions = {
   saveProject() {
     const blob = new Blob([JSON.stringify(store.project, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
-    a.download = `${store.project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "project"}.hatchfusion.json`;
+    a.download = `${store.project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "project"}.tempo.json`;
     a.href = URL.createObjectURL(blob);
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
@@ -725,7 +725,7 @@ projInput.addEventListener("change", async () => {
   if (!f) return;
   try {
     const p = JSON.parse(await f.text());
-    if (p.version !== 1 || !Array.isArray(p.clips)) throw new Error("not a hatch fusion project");
+    if (p.version !== 1 || !Array.isArray(p.clips)) throw new Error("not a TEMPO project");
     store.replaceProject(normalizeProject(p));
     invalidatePair();
     afterProjectLoad();

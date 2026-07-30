@@ -139,7 +139,7 @@ function normalOf(t, i) {
 }
 
 /** Binary STL. 80-byte header, triangle count, then 50 bytes per triangle. */
-export function toSTL(relief, title = "TEMPO relief") {
+export function toSTL(relief, title = "relief") {
   const n = relief.triangles;
   const buf = new ArrayBuffer(84 + n * 50);
   const dv = new DataView(buf);
