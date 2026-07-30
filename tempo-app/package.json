@@ -1,9 +1,16 @@
 {
-  "name": "hatch-fusion",
+  "name": "tempo",
   "private": true,
-  "description": "hatch·fusion studio — a timeline-based motion tool where hatch-studio animations and GLB assets share one particle pool. Sequence targets, keyframe the camera, export MP4 / PNG sequences.",
+  "description": "TEMPO — braille and block visuals. Visual makes stills and exports them as PNG, SVG and 3D; Motion sequences them on a timeline and exports MP4 or PNG frames.",
   "scripts": {
-    "start": "python3 serve.py"
+    "start": "python3 serve.py",
+    "check": "node --experimental-vm-modules --no-warnings tools/check.mjs",
+    "test": "node tools/test.mjs",
+    "drive": "node tools/drive.mjs",
+    "shoot": "node tools/shoot.mjs",
+    "perf": "node tools/perf.mjs",
+    "icons": "node tools/gen-icons.mjs",
+    "gate": "npm run check && npm run test && npm run drive"
   },
   "devDependencies": {
     "@hugeicons/core-free-icons": "^4.2.3",

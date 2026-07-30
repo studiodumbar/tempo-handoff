@@ -11,7 +11,7 @@
 
 import { Muxer, ArrayBufferTarget } from "../vendor/mp4-muxer.mjs";
 import { h, icon, toast } from "./ui/dom.js";
-import { totalDuration, projectDuration, fmtTime } from "./sequence.js";
+import { projectDuration, fmtTime } from "./sequence.js";
 
 // ---- tiny STORE-method zip --------------------------------------------------
 

@@ -1,13 +1,12 @@
-// The app-mode switcher — one pill, pinned top-centre on every page, so
-// Editor ⇄ Sequence feels like switching modes of one tool, not visiting
-// different sites. The active mode is inert text; the other navigates.
+// The app-mode switcher — one pill on every page, so Visual ⇄ Motion feels
+// like switching modes of one tool, not visiting different sites. The active
+// mode is inert text; the other navigates.
 
 import { h } from "./dom.js";
 
 const MODES = [
   { id: "visual", label: "Visual", href: "./index.html" },
-  { id: "editor", label: "Motion", href: "./editor.html" },
-  { id: "sequence", label: "Sequence", href: "./journey.html" },
+  { id: "motion", label: "Motion", href: "./editor.html" },
 ];
 
 export function appNav(active) {

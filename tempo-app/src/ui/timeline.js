@@ -12,7 +12,7 @@
 
 import { h, icon, tip, showMenu, clamp } from "./dom.js";
 import { iconButton } from "./fields.js";
-import { segments, totalDuration, projectDuration, fmtTime } from "../sequence.js";
+import { segments, projectDuration, fmtTime } from "../sequence.js";
 
 const PAD = 16;          // px before t=0 inside the scroll content
 const RULER_H = 26;

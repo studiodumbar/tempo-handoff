@@ -958,7 +958,7 @@ if (!store.loadAutosave()) {
 afterProjectLoad();
 
 const inspectorPanel = buildInspector(app);
-inspectorPanel.prepend(appNav("editor"));
+inspectorPanel.prepend(appNav("motion"));
 document.body.append(buildLibraryPanel(app), inspectorPanel, buildTimeline(app));
 
 store.on("project", () => {
