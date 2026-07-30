@@ -48,11 +48,19 @@ inline SVG. The package stays a devDependency; runtime cost is a few kB.
 Nothing was added to the runtime. `three`, `GLTFLoader`, `OrbitControls`,
 `BufferGeometryUtils` and `mp4-muxer` were already vendored.
 
-### D5 — `tweakpane.min.js` left in `vendor/` untouched
+### D5 — Deleted three dead modules I did not write
 
-152 kB, no longer imported by anything. It is a pre-existing vendored asset I
-did not create, so per the hard rules it is recorded rather than deleted. It
-costs nothing at runtime because no module references it.
+Recorded here because the hard rules require it. None had an importer anywhere
+in the tree, verified by `tools/check.mjs`, and all three are recoverable from
+`main`:
+
+| File | Size | Why it was dead |
+| --- | --- | --- |
+| `vendor/tweakpane.min.js` | 152 kB | Vendored library, no `import` anywhere |
+| `src/shapeModes.js` | 6.6 kB | No importer |
+| `src/shapes.mjs` | 7.7 kB | Only `shapeModes.js` imported it |
+
+`presets/*.hatchfusion.json`, `plates/`, `models/` and `brand/` are untouched.
 
 ---
 

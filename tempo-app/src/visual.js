@@ -1010,7 +1010,19 @@ function styleField() {
   return SegmentedField({
     label: "Style",
     get: () => (config.scene.blocks ? 1 : 0),
-    set: (v) => {
+    set: async (v) => {
+      // This RESETS the look, so it asks when there is tuning to lose. Without
+      // the question it is a destructive action wearing a view toggle's
+      // clothes — you press it to see the other side and your session is gone.
+      if (tunedAwayFromHouse()) {
+        const yes = await confirmAction({
+          title: "Reset the look?",
+          body: "Your tuning goes back to the house defaults. Canvas, colours "
+            + "and camera are kept.",
+          confirmLabel: "Reset",
+        });
+        if (!yes) { buildPanel(); return; }
+      }
       const { bg, ink, fov } = config.scene;
       config.scene = { ...cleanBrailleScene(), bg, ink, fov, blocks: v };
       // commit(true), not just applyScene: the cell size only reaches the glyph
@@ -1024,6 +1036,17 @@ function styleField() {
       { value: 0, label: "Braille", tip: "Dots only, nothing solidifies" },
       { value: 1, label: "Blocks", tip: "Hot cells print solid blocks" },
     ],
+  });
+}
+
+/** True when the scene has drifted from the house defaults on anything the
+    style switch would overwrite. Colours, canvas and camera are excluded —
+    the switch keeps those. */
+function tunedAwayFromHouse() {
+  const house = cleanBrailleScene();
+  return Object.keys(house).some((k) => {
+    if (k === "blocks") return false;
+    return config.scene[k] !== house[k];
   });
 }
 

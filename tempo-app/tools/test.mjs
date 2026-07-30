@@ -383,6 +383,30 @@ if (run("visual")) {
     await page.waitForTimeout(400);
   });
 
+  await t("the style switch asks before wiping tuning", async () => {
+    // drift the look, then try to flip style
+    await page.evaluate(() => {
+      window.__visual.config.scene.dotR = 1.1;
+      window.__visual.buildPanel();
+    });
+    await page.waitForTimeout(200);
+    await page.evaluate(() => {
+      const segs = [...document.querySelectorAll("#v-look .seg-btn")];
+      segs.find((b) => b.textContent === "Braille").click();
+    });
+    await page.waitForTimeout(250);
+    ok(await page.evaluate(() => !!document.querySelector(".confirm-card")),
+      "flipping style wiped the look with no question");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(250);
+    eq(await page.evaluate(() => window.__visual.config.scene.dotR), 1.1,
+      "Escape did not keep the tuning");
+    await page.evaluate(() => {
+      window.__visual.config.scene.dotR = 0.52;
+      window.__visual.buildPanel();
+    });
+  });
+
   await t("the export action is pinned, not scrolled past", async () => {
     const inView = await page.evaluate(() => {
       const btn = document.querySelector(".panel-foot .btn.primary");
