@@ -883,10 +883,14 @@ button:disabled .icon { opacity: 0.5; }
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: var(--sp-4);
   padding: var(--sp-10) var(--sp-8);
   text-align: center;
 }
+/* an empty panel centres its state in the space it owns, rather than pinning
+   it to the top where it reads as content that failed to load */
+.panel-body > .state:only-child { min-height: 100%; }
 .state .icon { width: var(--icon-l); height: var(--icon-l); color: var(--text-faint); }
 .state p {
   color: var(--text-dim);
@@ -1072,6 +1076,26 @@ button:disabled .icon { opacity: 0.5; }
 }
 
 .lib-search { margin-top: 0; }
+
+/* The library is a column of three sections that each own their own scroll,
+   rather than one long scroll: 87 animation rows used to push Assets and the
+   import control ~2 000px below the fold. */
+.lib-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.lib-body > .lib-section { flex: none; display: flex; flex-direction: column; min-height: 0; }
+.lib-body > .lib-grow { flex: 1 1 auto; }
+.lib-body > .lib-assets { max-height: 40%; }
+.lib-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* the clip list never takes more than its share of the column */
+.seq-list.lib-scroll { max-height: 30vh; }
 .lib-none { padding: var(--sp-4) var(--gutter); color: var(--text-faint); }
 
 .lib-import {

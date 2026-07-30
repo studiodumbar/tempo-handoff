@@ -8,7 +8,12 @@ import { TextField, iconButton } from "./fields.js";
 import { MODES } from "../modes.js";
 import { segments, clipDuration, fmtSeconds } from "../sequence.js";
 
-const kindIcon = (k) => (k === "mode" ? "wave" : "box");
+/** What the row IS, at a glance: a procedural animation, a traced image, or a
+    sampled model. The sub-label repeats it in words for the ambiguous cases. */
+const kindIcon = (kind, custom) => {
+  if (kind === "mode") return "wave";
+  return custom === "image" ? "image" : "box";
+};
 
 export function buildLibraryPanel(app) {
   const { store } = app;
@@ -31,9 +36,9 @@ export function buildLibraryPanel(app) {
   );
 
   // ---- sequence ----
-  const seqList = h("div", { class: "seq-list" });
+  const seqList = h("div", { class: "seq-list lib-scroll" });
   const seqSection = h("div", { class: "lib-section" },
-    h("div", { class: "lib-title" }, "Timeline",
+    h("div", { class: "lib-title" }, "Clips",
       h("span", { class: "lib-count seq-total" })),
     seqList);
 
@@ -74,7 +79,7 @@ export function buildLibraryPanel(app) {
       },
         h("span", { class: "seq-grip" }, icon("grip")),
         h("span", { class: "seq-index" }, String(i + 1)),
-        h("span", { class: "seq-kind" }, icon(kindIcon(clip.kind))),
+        h("span", { class: "seq-kind" }, icon(kindIcon(clip.kind, clipCustom(clip)))),
         h("span", { class: "seq-name" }, clip.label),
         h("span", { class: "seq-dur" }, fmtSeconds(clipDuration(clip, i))),
       );
@@ -154,9 +159,15 @@ export function buildLibraryPanel(app) {
   // ---- library ----
   // Rows are click-to-append AND pointer-drag-to-place. Deliberately NOT
   // HTML5 draggable — that swallows clicks that wobble a pixel or two.
-  function libRow({ kind, key, label, sub, state }) {
+  /** What a clip's asset turns out to be, for its row icon. */
+  function clipCustom(clip) {
+    if (clip.kind !== "asset") return null;
+    return app.library.assets().find((a) => a.key === clip.key)?.custom ?? null;
+  }
+
+  function libRow({ kind, key, label, sub, state, custom }) {
     const rowEl = h("div", { class: "lib-row", dataset: { kind, key } },
-      h("span", { class: "lib-icon" }, icon(kindIcon(kind))),
+      h("span", { class: "lib-icon" }, icon(kindIcon(kind, custom))),
       h("span", { class: "lib-name" }, label),
       sub ? h("span", { class: "lib-sub" }, sub) : null,
       state === "loading" ? icon("spinner", "spin lib-busy") : null,
@@ -176,7 +187,7 @@ export function buildLibraryPanel(app) {
         if (!ghost) {
           if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
           ghost = h("div", { class: "drag-chip" },
-            icon(kindIcon(kind)), h("span", {}, label));
+            icon(kindIcon(kind, custom)), h("span", {}, label));
           document.body.append(ghost);
         }
         ghost.style.transform = `translate(${ev.clientX + 10}px, ${ev.clientY + 8}px)`;
@@ -241,7 +252,7 @@ export function buildLibraryPanel(app) {
 
   const hit = (label) => !query || label.toLowerCase().includes(query);
 
-  const animList = h("div", { class: "lib-list" });
+  const animList = h("div", { class: "lib-list lib-scroll" });
   const animCount = h("span", { class: "lib-count" });
   function renderAnims() {
     animList.textContent = "";
@@ -255,17 +266,21 @@ export function buildLibraryPanel(app) {
     }
   }
 
-  const assetList = h("div", { class: "lib-list" });
+  const assetList = h("div", { class: "lib-list lib-scroll" });
+  const assetCount = h("span", { class: "lib-count" });
   let assetSig = null;
   function renderAssets(force = false) {
     const shown = app.library.assets().filter((a) => hit(a.label));
     const sig = shown.map((a) => `${a.key}:${a.state}:${a.custom}`).join("|");
     if (!force && sig === assetSig) return;
     assetSig = sig;
+    const total = app.library.assets().length;
+    assetCount.textContent = query && shown.length !== total
+      ? `${shown.length}/${total}` : String(total);
     assetList.textContent = "";
     for (const a of shown) {
       assetList.append(libRow({
-        kind: "asset", key: a.key, label: a.label, state: a.state,
+        kind: "asset", key: a.key, label: a.label, state: a.state, custom: a.custom,
         sub: a.custom === "image" ? "image" : a.custom ? "glb" : null,
       }));
     }
@@ -274,18 +289,23 @@ export function buildLibraryPanel(app) {
     }
   }
 
-  const importBtn = h("button", { class: "lib-import" },
-    icon("upload"), h("span", {}, "Import GLB / image…"));
+  const importBtn = h("button", { class: "lib-import", type: "button" },
+    icon("upload"), h("span", {}, "Import"));
+  tip(importBtn, "GLB, glTF, PNG, JPG or SVG");
   importBtn.addEventListener("click", () => app.actions.importGlb());
 
-  const body = h("div", { class: "panel-body" },
+  /* A flex column, not a single scroll: Clips takes what it needs (capped),
+     Animations absorbs the slack and scrolls inside itself, and Assets — the
+     short list, and the only way to import — is always in view. Stacked in one
+     scroll, 87 animation rows put it 2 000px below the fold. */
+  const body = h("div", { class: "panel-body lib-body" },
     seqSection,
-    h("div", { class: "lib-section" },
+    h("div", { class: "lib-section lib-grow" },
       h("div", { class: "lib-title" }, "Animations", animCount),
       searchField,
       animList),
-    h("div", { class: "lib-section" },
-      h("div", { class: "lib-title" }, "Assets"),
+    h("div", { class: "lib-section lib-assets" },
+      h("div", { class: "lib-title" }, "Assets", assetCount),
       assetList,
       importBtn),
   );

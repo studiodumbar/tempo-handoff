@@ -59,3 +59,47 @@ the fix.
 - `79e8908` The style switch confirms before wiping tuning.
 - `9c39285` Responsive layout at 1180 / 900, library drawer, derived timeline height, library search, empty-state copy.
 - `f43d5cc` tools/drive.mjs — drives both surfaces through their real controls and validates four exported files plus the project file on disk. Found two real bugs (a TDZ error killing every searchable menu; a doubled STL header).
+
+## Loop 1 — critique, 2026-07-31
+
+Re-shot every surface at 1440 / 1024 / 768 (`shots/loop1/`). What a demanding
+design director would still flag, ranked:
+
+1. **Two different things are called "Timeline".** The left panel's clip list is
+   headed *Timeline*; the bottom panel *is* the timeline, and its own lane is
+   headed *Clips*. Both are on screen at once. The brief asks for one name per
+   concept; this is the clearest remaining violation.
+2. **Assets are buried under 87 animations.** The library stacks Animations
+   then Assets in one scroll, so the products — and the Import control — sit
+   roughly 2 000 px below the fold. The short, more important list is
+   unreachable without scrolling past the long one.
+3. **The zoom reading appears twice**, in the stage label and in the zoom chip
+   eight pixels away.
+4. **The inspector's empty state is top-aligned** in a panel with 600 px of
+   space under it, so it reads as content that failed to load rather than as a
+   designed state.
+5. **Visual's panel has ~200 px of dead space** between the last section and
+   the pinned footer. Honest (the panel is short) but unresolved-looking.
+6. **The README still describes hatch·fusion**, three modes and a Sequence page
+   that no longer exists.
+
+### Loop 1 — fixed
+
+1. The clip list is **Clips**, matching the timeline lane it mirrors. Nothing
+   is called Timeline except the timeline.
+2. The library is a flex column of three sections that each own their scroll —
+   Clips (capped), Animations (absorbs the slack), Assets (always in view with
+   its import control). All six assets and the import button now sit on screen
+   with no scrolling; they were ~2 000 px down.
+3. The stage label no longer repeats the zoom chip's percentage.
+4. An empty panel centres its state in the space it owns.
+5. Row icons say what a thing IS — wave for an animation, image for a traced
+   image, cube for a sampled model — instead of one cube for everything but
+   animations.
+6. `Import GLB / image…` became `Import`, with the formats in its tooltip.
+   The shipped plate is labelled "long sleeve", so it reads as the same object
+   as its model rather than a second spelling.
+7. README rewritten for TEMPO. It described three modes, a Sequence page that
+   no longer exists, and a wordmark feature that `normalizeProject` has been
+   deleting from projects — verified gone from `modes.js` before removing the
+   section rather than carrying the claim forward.

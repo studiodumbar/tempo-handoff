@@ -130,7 +130,7 @@ async function registerImage(file) {
 // one always reconnects. Old import-… keys ride along as hidden aliases,
 // so clips from before an image shipped find it too.
 const SHIPPED_IMAGES = [
-  { key: "longsleeve", url: "./plates/longsleeve.png",
+  { key: "longsleeve", label: "long sleeve", url: "./plates/longsleeve.png",
     aliases: ["import-longsleeve"], match: "long-sleeve" },
 ];
 
@@ -193,7 +193,7 @@ async function matchImageToAsset(imgMode, assetKey) {
 function registerShippedImages() {
   for (const def of SHIPPED_IMAGES) {
     if (assetLib.has(def.key)) continue;
-    const entry = { key: def.key, label: def.key, custom: "image",
+    const entry = { key: def.key, label: def.label ?? def.key, custom: "image",
                     state: "idle", mode: null, shipped: def };
     assetLib.set(def.key, entry);
     for (const a of def.aliases || []) {
@@ -214,7 +214,7 @@ async function loadShippedImage(entry) {
                           { type: "image/png" });
     const mode = await imageModeFromFile(file, engine.N);
     mode.key = `asset:${def.key}`;
-    mode.label = def.key;
+    mode.label = def.label ?? def.key;
     entry.mode = mode;
     entry.state = "ready";
     // every alias points at the same traced mode
@@ -289,10 +289,11 @@ function layoutViewport() {
   occlusion.setSize(bufW / 2, bufH / 2);
 
   stageLabel.textContent = "";
+  // the zoom chip owns the zoom reading; repeating it eight pixels away is
+  // two sources for one number
   stageLabel.append(
     h("b", {}, store.project.name),
     h("span", {}, `${comp.width} × ${comp.height} · ${comp.fps} fps`),
-    h("span", {}, `${Math.round(viewScale * 100)}%`),
   );
   zoomPct.textContent = `${Math.round(viewScale * 100)}%`;
   appliedSig = layoutSig();
