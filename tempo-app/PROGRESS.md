@@ -53,3 +53,9 @@ the fix.
 - `364eaa5` Audit: baseline, tooling, ranked findings. Gate tooling in place (check / shoot / perf).
 - `8f34526` Remove Sequence mode and dead code — journey.{html,css,js}, shapeModes.js, shapes.mjs, tweakpane.min.js (152 kB, no importer). Two unused imports dropped.
 - `fdcc424` Design system: token layer, hugeicons via a generator, app-wide focus ring, complete reduced-motion, TEMPO wordmark. 26 tests green. Perf level with baseline (+26 kB app code for the icon module).
+- `538cb61` Load assets on demand — 26 367 kB → 2 063 kB (Visual) and 3 241 kB (Motion), long tasks 5 → 1/2, heap −88%/−57%. Perf tool corrected to force GC before reading the heap.
+- `81ad76c` Rebuild Visual around export; add the missing 3D export (STL + OBJ relief). Grouped, filterable source picker. Progressive disclosure. Pinned primary action. Shortcuts sheet on both surfaces. Confirms on Motion's destructive actions.
+- `9cf235b` DESIGN_DECISIONS: D6–D18.
+- `79e8908` The style switch confirms before wiping tuning.
+- `9c39285` Responsive layout at 1180 / 900, library drawer, derived timeline height, library search, empty-state copy.
+- `f43d5cc` tools/drive.mjs — drives both surfaces through their real controls and validates four exported files plus the project file on disk. Found two real bugs (a TDZ error killing every searchable menu; a doubled STL header).
