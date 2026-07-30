@@ -960,6 +960,9 @@ button:disabled .icon { opacity: 0.5; }
   background: var(--panel);
 }
 .panel-foot > .btn { width: calc(100% - var(--gutter) * 2); margin: 0 var(--gutter); }
+/* the inspector lifts a tab's .panel-foot out of the scroll and pins it here */
+.insp-foot { flex: none; display: flex; flex-direction: column; }
+.insp-foot .panel-foot { border-top: 1px solid var(--panel-border); }
 .foot-opts { display: flex; flex-direction: column; }
 .foot-cta {
   display: flex;

@@ -103,3 +103,37 @@ design director would still flag, ranked:
    no longer exists, and a wordmark feature that `normalizeProject` has been
    deleting from projects — verified gone from `modes.js` before removing the
    section rather than carrying the claim forward.
+
+## Loop 2 — critique, 2026-07-31
+
+`tools/shoot.mjs` now captures interaction states, not just default views —
+the inspector's three tabs, the source picker, a confirmation and the shortcut
+sheet. Panels nobody screenshots are panels nobody critiques, and the Motion
+inspector turned out never to have had the pass Visual got:
+
+1. **Timing was misaligned.** `grid2(durF, holdF)` with a null `durF` left an
+   empty cell, so the first clip's hold sat in the right column and its delay
+   alone underneath — two values, three cells, no alignment. Both fields also
+   carried the same hourglass icon and no words.
+2. **Prose, still.** "The first clip opens already settled — add an intro
+   below to animate it in." and "Background · ink." and "Placement rides the
+   image asset's size / spin / tilt params."
+3. **Five sections for one clip**, two of which were a single select each
+   (*Intro / From*, *Exit / To*), and both showed even when set to none.
+4. **A Reset that did nothing.** Parameters always offered it, override or not.
+5. **The export action scrolled away** on this surface while Visual's was
+   pinned, and its readout lived inside the Range section as a `.note`.
+6. **No export shortcut** on Motion, while Visual had ⌘E.
+
+### Loop 2 — fixed
+
+Timing packs whatever fields the clip actually has, two per row, with word
+prefixes (`hold`, `in`, `delay`). The intro and exit selects moved into it as
+*Opens* and *Ends* — they are the control the deleted paragraph was pointing
+at, so they moved to where the reader already is. The flight sections appear
+only when there is a flight. Reset appears only when there is an override, and
+it confirms. Colour fields have labels. The export action is pinned in the
+same footer pattern as Visual, with the same ⌘E and the same meta line.
+
+The last three `.note` paragraphs in the app are gone; a test now fails on any
+panel text over six words.

@@ -444,6 +444,7 @@ function drawTileDebug(T) {
 // down — so a new key here is a key the interface teaches.
 
 const MOD = isMac ? "\u2318" : "Ctrl";
+const EXPORT_KEY = isMac ? "\u2318E" : "Ctrl E";
 const SHORTCUTS = [
   { title: "Playback", keys: [
     ["Space", "Play or pause"],
@@ -465,6 +466,7 @@ const SHORTCUTS = [
   { title: "Project", keys: [
     [`${MOD} S`, "Save file"],
     [`${MOD} O`, "Open file"],
+    [EXPORT_KEY, "Export"],
   ] },
   { title: "View", keys: [
     [`${MOD} 1`, "Fit"],
@@ -698,6 +700,7 @@ const app = {
   store,
   actions,
   engine,
+  exportKey: EXPORT_KEY,
   normalizeProject,
   projectDuration: () => projectDuration(store.project),
   renderAt: (T) => exportHooks.renderAt(T),   // headless-driving hook
@@ -810,6 +813,10 @@ window.addEventListener("keydown", (e) => {
   } else if (mod && e.code === "KeyO") {
     e.preventDefault();
     actions.openProject();
+  } else if (mod && e.code === "KeyE") {
+    // the same key exports on both surfaces
+    e.preventDefault();
+    if (store.project.clips.length) actions.export();
   } else if (e.key === "Backspace" || e.key === "Delete") {
     const sel = store.session.selection;
     if (sel?.type === "clip") actions.removeClip(sel.id);

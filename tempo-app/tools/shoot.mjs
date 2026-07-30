@@ -22,6 +22,57 @@ const argOf = (k) => {
 export const PAGES = [
   { name: "visual", url: "/index.html" },
   { name: "motion", url: "/editor.html" },
+
+  /* States are surfaces too. A panel nobody screenshots is a panel nobody
+     critiques — the inspector's own tabs, the pickers and the dialogs were
+     invisible to this tool until they were named here. */
+  {
+    name: "motion-clip", url: "/editor.html",
+    setup: async (p) => {
+      await p.click(".tl-clip");
+      await p.waitForTimeout(500);
+    },
+  },
+  {
+    name: "motion-scene", url: "/editor.html",
+    setup: async (p) => {
+      await p.click('[role=tab][data-tab="scene"]');
+      await p.waitForTimeout(400);
+    },
+  },
+  {
+    name: "motion-export", url: "/editor.html",
+    setup: async (p) => {
+      await p.click('[role=tab][data-tab="export"]');
+      await p.waitForTimeout(400);
+    },
+  },
+  {
+    name: "visual-picker", url: "/index.html",
+    setup: async (p) => {
+      await p.click(".source-btn");
+      await p.waitForTimeout(500);
+    },
+  },
+  {
+    name: "visual-confirm", url: "/index.html",
+    setup: async (p) => {
+      await p.evaluate(() => {
+        window.__visual.config.scene.dotR = 1.2;
+        window.__visual.buildPanel();
+      });
+      await p.waitForTimeout(250);
+      await p.click('#v-look .seg-btn:has-text("Braille")');
+      await p.waitForTimeout(500);
+    },
+  },
+  {
+    name: "shortcuts", url: "/editor.html",
+    setup: async (p) => {
+      await p.click(".appnav .icon-btn");
+      await p.waitForTimeout(500);
+    },
+  },
 ];
 
 const WIDTHS = [
@@ -49,6 +100,7 @@ for (const page of PAGES) {
   if (only && page.name !== only) continue;
   for (const { w, h } of WIDTHS) {
     if (onlyW && String(w) !== onlyW) continue;
+    if (page.setup && !onlyW && w !== 1440) continue;   // states: one width
     const ctx = await browser.newContext({
       viewport: { width: w, height: h },
       deviceScaleFactor: 2,
@@ -61,6 +113,9 @@ for (const page of PAGES) {
     tab.on("pageerror", (e) => logs.push(`pageerror: ${e.message}`));
     await tab.goto(BASE + page.url, { waitUntil: "load" });
     await tab.waitForTimeout(2500);
+    if (page.setup) {
+      try { await page.setup(tab); } catch (err) { logs.push(`setup: ${err.message}`); }
+    }
     const file = path.join(OUT, `${page.name}-${w}.png`);
     await tab.screenshot({ path: file });
     report.push({ page: page.name, width: w, file, logs });

@@ -407,6 +407,18 @@ if (run("visual")) {
     });
   });
 
+  await t("no explanatory prose survives in the panel", async () => {
+    const prose = await page.evaluate(() => {
+      const out = [];
+      for (const el of document.querySelectorAll(".panel .note, .panel p")) {
+        const t2 = el.textContent.trim();
+        if (t2.split(/\s+/).length > 6) out.push(t2.slice(0, 60));
+      }
+      return out;
+    });
+    eq(prose.join(" | "), "", "prose found:");
+  });
+
   await t("the export action is pinned, not scrolled past", async () => {
     const inView = await page.evaluate(() => {
       const btn = document.querySelector(".panel-foot .btn.primary");
@@ -580,6 +592,39 @@ if (run("motion")) {
     });
     ok(rebuilds > 0, "the list ignored a change it displays");
     await page.evaluate(() => window.__app.store.undo());
+  });
+
+  await t("no explanatory prose survives in either panel", async () => {
+    // the rule: if a control needs a paragraph, the control is wrong
+    const prose = await page.evaluate(() => {
+      const out = [];
+      for (const el of document.querySelectorAll(".panel .note, .panel p")) {
+        const t2 = el.textContent.trim();
+        if (t2.split(/\s+/).length > 6) out.push(t2.slice(0, 60));
+      }
+      return out;
+    });
+    eq(prose.join(" | "), "", "prose found:");
+  });
+
+  await t("the export action is pinned on this surface too", async () => {
+    await page.evaluate(() => {
+      document.querySelector('[role=tab][data-tab="export"]').click();
+    });
+    await page.waitForTimeout(400);
+    const state = await page.evaluate(() => {
+      const btn = document.querySelector(".insp-foot .btn.primary");
+      if (!btn) return "missing";
+      const body = document.querySelector(".right-panel .panel-body");
+      body.scrollTop = body.scrollHeight;
+      const r = btn.getBoundingClientRect();
+      return r.bottom <= window.innerHeight && r.top >= 0 ? "visible" : "off-screen";
+    });
+    eq(state, "visible");
+    await page.evaluate(() => {
+      document.querySelector('[role=tab][data-tab="clip"]').click();
+    });
+    await page.waitForTimeout(300);
   });
 
   await t("the shortcut sheet opens from the chrome and from ?", async () => {

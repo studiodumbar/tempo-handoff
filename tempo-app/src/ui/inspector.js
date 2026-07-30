@@ -11,7 +11,7 @@
 // Rebuilds only when the STRUCTURE of what it shows changes; plain value
 // changes refresh fields in place so an active drag is never interrupted.
 
-import { h, icon, showMenu } from "./dom.js";
+import { h, icon, showMenu, confirmAction } from "./dom.js";
 import {
   NumberField, SelectField, SwitchField, ColorField, TextField, SegmentedField,
   row, section, grid2, button,
@@ -59,7 +59,11 @@ export function buildInspector(app) {
   });
 
   const body = h("div", { class: "panel-body" });
-  const panel = h("div", { class: "panel right-panel" }, tabs, body);
+  // Anything a tab hands back with a .panel-foot class is lifted out of the
+  // scroll and pinned here, so Motion's export action is as reachable as
+  // Visual's — one pattern for the primary action on both surfaces.
+  const foot = h("div", { class: "insp-foot", hidden: true });
+  const panel = h("div", { class: "panel right-panel" }, tabs, body, foot);
 
   // The pill is a 1px block stretched by transform, never by width: width is a
   // layout property and animating it relayouts the tab strip every frame.
@@ -92,8 +96,8 @@ export function buildInspector(app) {
     fields.push(f);
     return f;
   }
-  function col(get, set) {
-    const f = ColorField({ get, set });
+  function col(get, set, label) {
+    const f = ColorField({ get, set, label });
     fields.push(f);
     return f;
   }
@@ -165,9 +169,24 @@ export function buildInspector(app) {
         grid2(F("seed", "seed", 0, 99, 1), null),
       ]),
       section("Look", [
-        grid2(F("alpha", "alpha", 0, 1, 0.01), null),
-        h("div", { class: "note" },
-          "Placement rides the image asset's size / spin / tilt params."),
+        grid2(
+          num(
+            () => {
+              const x = (store.project.photos || []).find((y) => y.id === pid);
+              return x ? (x.alpha ?? 1) : 1;
+            },
+            (v, live) => {
+              store.mutate((p) => {
+                const x = p.photos.find((y) => y.id === pid);
+                if (x) x.alpha = v;
+              }, { coalesce: `ph.alpha.${pid}` });
+              if (!live) store.endCoalesce();
+            },
+            { min: 0, max: 1, step: 0.01,
+              prefix: { text: "alpha", tip: "Opacity. Placement follows the image asset's own size, spin and tilt" } },
+          ),
+          null,
+        ),
       ]),
     ];
   }
@@ -228,25 +247,45 @@ export function buildInspector(app) {
     const holdF = num(
       () => getClip()?.hold ?? 0,
       (v, live) => mut((p) => { const c = p.clips.find((x) => x.id === cid); if (c) c.hold = v; }, `hold${cid}`, live),
-      { min: 0, max: 60, step: 0.05, unit: "s", prefix: { icon: "hourglass", tip: "Hold — how long the pool rests here" } },
+      { min: 0, max: 60, step: 0.05, unit: "s", prefix: { text: "hold", tip: "How long the pool rests here" } },
     );
     const hasIntro = first && (clip.intro | 0) > 0;
     const durF = first && !hasIntro ? null : num(
       () => getClip()?.trans.duration ?? 0,
       (v, live) => mut((p) => { const c = p.clips.find((x) => x.id === cid); if (c) c.trans.duration = v; }, `dur${cid}`, live),
-      { min: 0, max: 10, step: 0.05, unit: "s", prefix: { icon: "clock", tip: first ? "Intro duration — the opening flight" : "Transition duration — the flight in" } },
+      { min: 0, max: 10, step: 0.05, unit: "s", prefix: { text: "in", tip: first ? "The opening flight" : "The flight in from the clip before" } },
     );
     const delayF = !first ? null : num(
       () => getClip()?.delay ?? 0,
       (v, live) => mut((p) => { const c = p.clips.find((x) => x.id === cid); if (c) c.delay = v; }, `dly${cid}`, live),
-      { min: 0, max: 30, step: 0.05, unit: "s", prefix: { icon: "hourglass", tip: "Delay — empty space before the sequence begins; the comp holds black" } },
+      { min: 0, max: 30, step: 0.05, unit: "s", prefix: { text: "delay", tip: "Black before the sequence begins" } },
     );
+    /* Pack whatever fields this clip actually has two-per-row. Passing a null
+       into grid2 left an empty cell, so the first clip's hold sat in the right
+       column with its delay alone underneath — two values, three cells, no
+       alignment. */
+    const pack = (fields2) => {
+      const live = fields2.filter(Boolean);
+      const rows = [];
+      for (let i = 0; i < live.length; i += 2) rows.push(grid2(live[i], live[i + 1] ?? null));
+      return rows;
+    };
+
     out.push(section("Timing", [
-      grid2(durF, holdF),
-      first ? grid2(delayF, null) : null,
-      first && !hasIntro
-        ? h("div", { class: "note" }, "The first clip opens already settled — add an intro below to animate it in.")
-        : null,
+      ...pack([durF, holdF, delayF]),
+      // The note here used to read "The first clip opens already settled — add
+      // an intro below to animate it in." The control it pointed at is this
+      // one, so it moved up to where the reader already is.
+      first ? row("Opens", sel(
+        () => getClip()?.intro ?? 0,
+        (v) => mut((p) => { const c = p.clips.find((x) => x.id === cid); if (c) c.intro = v; }),
+        optIdx(INTRO_STYLES),
+      ), { tipText: "How the pool arrives — settled, printed in place, burst from the centre, assembled from a cloud, rained in, or converged from beyond the rim" }) : null,
+      row("Ends", sel(
+        () => getClip()?.outro ?? 0,
+        (v) => mut((p) => { const c = p.clips.find((x) => x.id === cid); if (c) c.outro = v; }),
+        optIdx(INTRO_STYLES),
+      ), { tipText: "How the pool leaves. A following clip then enters from the state this left behind" }),
     ].filter(Boolean), { id: "clip-timing" }));
 
     // -- transition / intro / exit --
@@ -345,36 +384,26 @@ export function buildInspector(app) {
         null,
       ),
     ];
-    if (first) {
-      out.push(section("Intro", [
-        row("From", sel(
-          () => getClip()?.intro ?? 0,
-          (v) => mut((p) => { const c = p.clips.find((x) => x.id === cid); if (c) c.intro = v; }),
-          optIdx(INTRO_STYLES),
-        ), { tipText: "Where the pool opens from — print in place, burst from the centre, assemble from a cloud, rain / rise in, converge from beyond the rim" }),
-        ...(hasIntro ? flightRows() : []),
-      ], { id: "clip-intro" }));
-    } else {
+    // The flight itself. For the first clip there is only one when an intro
+    // is chosen; otherwise it is the transition in from the clip before.
+    if (!first) {
       out.push(section("Transition", flightRows(), { id: "clip-transition" }));
+    } else if (hasIntro) {
+      out.push(section("Intro flight", flightRows(), { id: "clip-intro" }));
     }
 
     // -- exit: ANY clip can fly OUT (the intro run backwards). Mid-timeline,
     // the screen empties and the NEXT clip enters from the exited state. --
     const hasOutro = (clip.outro | 0) > 0;
-    out.push(section("Exit", [
-      row("To", sel(
-        () => getClip()?.outro ?? 0,
-        (v) => mut((p) => { const c = p.clips.find((x) => x.id === cid); if (c) c.outro = v; }),
-        optIdx(INTRO_STYLES),
-      ), { tipText: "Where the pool leaves to — print away in place, collapse to the centre, scatter to a cloud, rain / rise out, fly beyond the rim. A following clip then enters from the exited state" }),
-      ...(hasOutro ? [
+    if (hasOutro) {
+      out.push(section("Exit flight", [
         grid2(
-          TB("duration", 0.9, { min: 0.05, max: 10, step: 0.05, unit: "s", prefix: { icon: "clock", tip: "Exit duration — the closing flight" } }, "outroTrans"),
+          TB("duration", 0.9, { min: 0.05, max: 10, step: 0.05, unit: "s", prefix: { text: "out", tip: "The closing flight" } }, "outroTrans"),
           null,
         ),
         ...flightRows("outroTrans"),
-      ] : []),
-    ], { id: "clip-exit" }));
+      ], { id: "clip-exit" }));
+    }
 
     // -- parameters --
     if (base) {
@@ -425,16 +454,29 @@ export function buildInspector(app) {
       });
       const rows = [];
       for (let i = 0; i < cells.length; i += 2) rows.push(grid2(cells[i], cells[i + 1] ?? null));
-      const resetBtn = h("button", { class: "section-link" }, "Reset");
-      resetBtn.addEventListener("click", () => {
-        mut((p) => { const c = p.clips.find((x) => x.id === cid); if (c) c.params = {}; });
-        invalidateClip(cid);
-        invalidatePair();
-      });
-      out.push(section("Parameters", rows, { actions: [resetBtn], id: "clip-params" }));
+      // an action that does nothing is worse than no action: Reset appears
+      // only when there is an override to reset
+      const overrides = Object.keys(getClip()?.params ?? {}).length;
+      const actions = [];
+      if (overrides) {
+        const resetBtn = h("button", { class: "section-link", type: "button" }, "Reset");
+        resetBtn.addEventListener("click", async () => {
+          const yes = await confirmAction({
+            title: "Reset parameters?",
+            body: `${overrides} changed value${overrides > 1 ? "s" : ""} go back to the source's defaults.`,
+            confirmLabel: "Reset",
+          });
+          if (!yes) return;
+          mut((p) => { const c = p.clips.find((x) => x.id === cid); if (c) c.params = {}; });
+          invalidateClip(cid);
+          invalidatePair();
+        });
+        actions.push(resetBtn);
+      }
+      out.push(section("Parameters", rows, { actions, id: "clip-params" }));
     } else {
       out.push(section("Parameters", [
-        h("div", { class: "note busy" }, icon("spinner", "spin"), "Sampling asset…"),
+        h("div", { class: "loading-row" }, icon("spinner", "spin"), "Sampling…"),
       ], { id: "clip-params" }));
     }
 
@@ -506,13 +548,12 @@ export function buildInspector(app) {
           sel(() => comp().fps, (v) => mut((p) => { p.comp.fps = v; }),
             FPS_OPTIONS.map((f) => ({ value: f, label: `${f} fps` })),
             { prefix: { icon: "film" }, tipText: "Frame rate" }),
-          readout(() => fmtSeconds(totalDuration(store.project.clips))),
+          readout(() => `${fmtSeconds(totalDuration(store.project.clips))} long`),
         ),
         grid2(
-          col(() => comp().bg, (v, live) => mut((p) => { p.comp.bg = v; }, "bg", live)),
-          col(() => comp().ink, (v, live) => mut((p) => { p.comp.ink = v; }, "ink", live)),
+          col(() => comp().bg, (v, live) => mut((p) => { p.comp.bg = v; }, "bg", live), "Background"),
+          col(() => comp().ink, (v, live) => mut((p) => { p.comp.ink = v; }, "ink", live), "Ink"),
         ),
-        h("div", { class: "note" }, "Background · ink."),
       ], { id: "sc-comp" }),
 
       section("Camera", [
@@ -529,7 +570,8 @@ export function buildInspector(app) {
           (v) => mut((p) => { p.camera.follow = v; }),
         ), { tipText: "Play and export through the camera keyframes" }),
         h("div", { class: "btn-row" },
-          button("Add keyframe at playhead", {
+          button("Add keyframe", {
+            title: "At the playhead — K",
             iconName: "diamondO", variant: "subtle", wide: true,
             onClick: () => app.actions.addCameraKf(),
           })),
@@ -603,7 +645,7 @@ export function buildInspector(app) {
     const ex = () => store.project.export;
     const comp = () => store.project.comp;
 
-    const est = h("div", { class: "note" });
+    const est = h("div", { class: "foot-meta" });
     const refreshInfo = () => {
       const total = totalDuration(store.project.clips);
       const start = Math.min(ex().start, total);
@@ -611,7 +653,10 @@ export function buildInspector(app) {
       const fps = ex().fps || comp().fps;
       const frames = Math.max(0, Math.ceil((end - start) * fps));
       const k = Math.max(1, Math.round(ex().scale || 1));
-      est.textContent = `${comp().width * k} × ${comp().height * k} · ${frames} frames · ${fmtSeconds(end - start)} @ ${fps} fps`;
+      est.textContent = "";
+      est.append(
+        h("span", {}, `${comp().width * k} × ${comp().height * k}`),
+        h("span", {}, `${frames} frames · ${fmtSeconds(end - start)} @ ${fps} fps`));
     };
     refreshInfo();
     fields.push({ refresh: refreshInfo });
@@ -624,11 +669,12 @@ export function buildInspector(app) {
     );
 
     const exportBtn = button("", { variant: "primary", wide: true });
+    exportBtn.classList.add("large");
     const btnLabel = h("span", {});
     exportBtn.textContent = "";
     exportBtn.append(icon("film"), btnLabel);
     const refreshBtn = () => {
-      btnLabel.textContent = isMp4() ? "Export MP4" : "Export PNG sequence";
+      btnLabel.textContent = isMp4() ? "Export MP4" : "Export frames";
       exportBtn.querySelector(".icon").replaceWith(icon(isMp4() ? "film" : "image"));
       exportBtn.disabled = store.session.exporting || !store.project.clips.length;
       qualityGrid.style.display = isMp4() ? "" : "none";
@@ -662,11 +708,12 @@ export function buildInspector(app) {
           num(() => ex().start, (v, live) => mut((p) => { p.export.start = v; }, "exs", live),
             { min: 0, max: 600, step: 0.05, unit: "s", prefix: { text: "in", tip: "Range start" } }),
           num(() => ex().end, (v, live) => mut((p) => { p.export.end = v; }, "exe", live),
-            { min: 0, max: 600, step: 0.05, unit: "s", prefix: { text: "out", tip: "Range end — 0 = end of sequence" } }),
+            { min: 0, max: 600, step: 0.05, unit: "s", prefix: { text: "out", tip: "Range end — 0 is the end of the sequence" } }),
         ),
-        est,
       ], { id: "ex-range" }),
-      h("div", { class: "panel-foot" }, exportBtn),
+      h("div", { class: "panel-foot" },
+        h("div", { class: "foot-cta" }, exportBtn, h("span", { class: "kbd" }, app.exportKey)),
+        est),
     ];
   }
 
@@ -694,8 +741,12 @@ export function buildInspector(app) {
     structureKey = computeKey();
     fields = [];
     body.textContent = "";
+    foot.textContent = "";
     const parts = tab === "clip" ? clipTab() : tab === "scene" ? sceneTab() : exportTab();
-    body.append(...parts);
+    const pinned = parts.filter((el) => el?.classList?.contains("panel-foot"));
+    body.append(...parts.filter((el) => !pinned.includes(el)));
+    foot.append(...pinned);
+    foot.hidden = !pinned.length;
     positionPill();
   }
 
