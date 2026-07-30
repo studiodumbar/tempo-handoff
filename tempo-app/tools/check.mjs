@@ -129,8 +129,13 @@ const cssFiles = all.filter((f) => f.endsWith(".css"));
 const definedVars = new Set();
 const usedVars = [];
 
+// comments hold prose that looks like CSS ("small enter: tooltip") — blank
+// them out while keeping line numbers intact
+const decomment = (s) => s.replace(/\/\*[\s\S]*?\*\//g,
+  (m) => m.replace(/[^\n]/g, " "));
+
 for (const f of cssFiles) {
-  const src = await readFile(f, "utf8");
+  const src = decomment(await readFile(f, "utf8"));
   for (const m of src.matchAll(/(--[\w-]+)\s*:/g)) definedVars.add(m[1]);
   for (const m of src.matchAll(/var\((--[\w-]+)/g)) {
     usedVars.push({ file: rel(f), name: m[1], line: src.slice(0, m.index).split("\n").length });
@@ -157,18 +162,70 @@ for (const u of usedVars) {
 
 // magic numbers where a token owns the value
 const TOKENISED = [
-  { re: /transition[^;]*?\b(\d{2,4})ms/g, what: "duration", hint: "--dur-*" },
+  { re: /transition[^;]*?\b\d{2,4}ms/g, what: "duration", hint: "--dur-*" },
   { re: /cubic-bezier\(/g, what: "easing curve", hint: "--ease-*" },
 ];
 for (const f of cssFiles) {
-  const src = await readFile(f, "utf8");
+  const src = decomment(await readFile(f, "utf8"));
+  const lines = src.split("\n");
+  // the reduced-motion block is where durations are deliberately overridden to
+  // near-zero, so its literals are the point rather than a slip
+  const reduced = [];
+  const rm = /@media \(prefers-reduced-motion[^{]*\{/g;
+  for (const m of src.matchAll(rm)) {
+    let depth = 1, i = m.index + m[0].length;
+    while (i < src.length && depth > 0) {
+      if (src[i] === "{") depth++;
+      else if (src[i] === "}") depth--;
+      i++;
+    }
+    reduced.push([m.index, i]);
+  }
+  const inReduced = (i) => reduced.some(([a, b]) => i >= a && i < b);
+
   for (const { re, what, hint } of TOKENISED) {
     for (const m of src.matchAll(re)) {
+      if (inReduced(m.index)) continue;
       const line = src.slice(0, m.index).split("\n").length;
-      // a token definition block is allowed to hold the literal
-      const lineText = src.split("\n")[line - 1] || "";
-      if (/^\s*--/.test(lineText)) continue;
+      // a token definition is allowed to hold the literal
+      if (/^\s*--/.test(lines[line - 1] || "")) continue;
       fail(rel(f), line, `literal ${what} — use ${hint}`);
+    }
+  }
+}
+
+// ---- class names ------------------------------------------------------------
+// Every class the JS attaches must have a rule somewhere, and every rule must
+// be reachable from the JS or the HTML. Both directions catch the same bug:
+// a rename that only landed on one side.
+
+const cssClasses = new Set();
+for (const f of cssFiles) {
+  const src = decomment(await readFile(f, "utf8"));
+  for (const m of src.matchAll(/\.(-?[A-Za-z_][\w-]*)/g)) cssClasses.add(m[1]);
+}
+for (const f of all.filter((x) => x.endsWith(".html"))) {
+  const src = await readFile(f, "utf8");
+  for (const m of src.matchAll(/class="([^"]+)"/g)) {
+    for (const c of m[1].split(/\s+/)) cssClasses.add(c);
+  }
+}
+
+const CLASS_SITES = [
+  /class:\s*`([^`$]*)/g,          // h("div", { class: "a b" })
+  /class:\s*"([^"]*)"/g,
+  /classList\.(?:add|toggle|remove)\("([\w-]+)"/g,
+  /querySelector(?:All)?\("\.([\w-]+)"/g,
+  /closest\("\.([\w-]+)"/g,
+];
+for (const [f, src] of sources) {
+  for (const re of CLASS_SITES) {
+    for (const m of src.matchAll(re)) {
+      const line = src.slice(0, m.index).split("\n").length;
+      for (const c of m[1].trim().split(/\s+/)) {
+        if (!c || c.includes("${")) continue;
+        if (!cssClasses.has(c)) fail(rel(f), line, `class "${c}" has no CSS rule`);
+      }
     }
   }
 }

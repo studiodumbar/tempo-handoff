@@ -19,9 +19,9 @@ import { exportSVG, download } from "./exportStill.js";
 import { setAssetResolver, clipRuntime, baseModeFor } from "./sequence.js";
 import { defaultProject, defaultTransition, cleanBrailleScene } from "./store.js";
 import { h, icon, toast } from "./ui/dom.js";
-import { appNav, styleNav } from "./ui/appnav.js";
+import { appNav } from "./ui/appnav.js";
 import {
-  NumberField, SelectField, SwitchField, ColorField,
+  NumberField, SelectField, SwitchField, ColorField, SegmentedField,
   section, grid2, row, button,
 } from "./ui/fields.js";
 
@@ -492,32 +492,41 @@ function frame() {
 
 const panel = document.getElementById("vpanel");
 panel.append(appNav("visual"));
-// the house style lives in the chrome, next to the mode switch: either side
-// restores the clean braille look, and which one is lit says whether blocks
-// are allowed to solidify
-const styleSwitch = styleNav(
-  () => !!config.scene.blocks,
-  (blocksOn) => {
-    // only the LOOK resets; size, colours and camera are the piece's own
-    const { bg, ink, fov } = config.scene;
-    config.scene = { ...cleanBrailleScene(), bg, ink, fov, blocks: blocksOn ? 1 : 0 };
-    // commit(true), not just applyScene: the cell size only reaches the glyph
-    // pass through layout(), so without the relayout the grid — the most
-    // visible half of the style — silently stays where it was
-    commit(true);
-    applyScene();
-    buildPanel();
-  });
-panel.append(styleSwitch);
 const panelMain = h("div", { class: "v-panel-main" });
 panel.append(panelMain);
+
+/** The house style, as a two-way segmented control. Either side restores the
+    clean-braille look; the difference between them is whether hot cells are
+    allowed to solidify into blocks. It RESETS the look — size, colours and
+    camera are the piece's own and survive. */
+function styleField() {
+  return SegmentedField({
+    label: "Style",
+    get: () => (config.scene.blocks ? 1 : 0),
+    set: (v) => {
+      const { bg, ink, fov } = config.scene;
+      config.scene = { ...cleanBrailleScene(), bg, ink, fov, blocks: v };
+      // commit(true), not just applyScene: the cell size only reaches the glyph
+      // pass through layout(), so without the relayout the grid — the most
+      // visible half of the style — silently stays where it was
+      commit(true);
+      applyScene();
+      buildPanel();
+    },
+    options: [
+      { value: 0, label: "Braille", tip: "Dots only — nothing solidifies" },
+      { value: 1, label: "Blocks", tip: "Hot cells print solid blocks" },
+    ],
+  });
+}
 
 function commit(relayout) { saveConfig(); if (relayout) layout(); }
 
 const sceneNum = (key, o, relayout = false) => NumberField({
   get: () => config.scene[key],
   set: (v) => { config.scene[key] = v; commit(relayout); }, ...o });
-const sceneSwitch = (key) => SwitchField({
+const sceneSwitch = (key, label) => SwitchField({
+  label,
   get: () => !!config.scene[key],
   set: (v) => { config.scene[key] = key === "blocks" ? (v ? 1 : 0) : v; commit(false); } });
 const sceneSelect = (key, options) => SelectField({
@@ -550,9 +559,9 @@ function resetView() {
 // of sections (the advanced ones start collapsed, like the inspector).
 function buildPanel() {
   panelMain.textContent = "";
-  const b = h("div", { class: "panel-body inspector-body" });
+  const b = h("div", { class: "panel-body" });
   panelMain.append(b);
-  b.append(...placeTab(), ...sceneTab(), ...exportTab());
+  b.append(row("Style", styleField()), ...placeTab(), ...sceneTab(), ...exportTab());
 }
 
 function placeTab() {
@@ -702,6 +711,7 @@ function exportTab() {
       options: [1, 2, 3].map((s) => ({ value: s, label: `${s}× — ${config.comp.width * s} px` })),
     })),
     row("Transparent", SwitchField({
+      label: "Transparent background",
       get: () => !!config.export.transparent,
       set: (v) => { config.export.transparent = v; commit(false); },
     }), { tipText: "Drop the background — ink only, for placing on any surface" }),
@@ -747,6 +757,7 @@ window.addEventListener("drop", async (e) => {
 window.__visual = {
   config, engine, renderer, terminal,
   setTarget, exportPNG,
+  save: () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); } catch {} },
   svg: () => exportSVG({ renderer, terminal, scene: { ...config.scene },
     comp: config.comp, transparent: config.export.transparent }),
   // deterministic frame — rAF-independent, for tests and scripted stills

@@ -38,23 +38,42 @@ export function buildInspector(app) {
 
   // ---- tab strip ----
   const tabNames = [["clip", "Clip"], ["scene", "Scene"], ["export", "Export"]];
-  const pill = h("span", { class: "tab-pill" });
+  const pill = h("span", { class: "tab-pill", "aria-hidden": "true" });
   const tabBtns = tabNames.map(([id, label]) => {
-    const b = h("button", { class: "tab-btn", dataset: { tab: id } }, label);
+    const b = h("button", {
+      class: "tab-btn", role: "tab", dataset: { tab: id }, "aria-selected": "false",
+    }, label);
     b.addEventListener("click", () => { tab = id; render(); });
     return b;
   });
-  const tabs = h("div", { class: "tabs" }, pill, ...tabBtns);
+  // arrow keys move between tabs; the strip is one tab stop (roving tabindex)
+  const tabs = h("div", { class: "tabs", role: "tablist" }, pill, ...tabBtns);
+  tabs.addEventListener("keydown", (e) => {
+    const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const i = tabNames.findIndex(([id]) => id === tab);
+    tab = tabNames[(i + d + tabNames.length) % tabNames.length][0];
+    render();
+    tabBtns.find((b) => b.dataset.tab === tab)?.focus();
+  });
 
-  const body = h("div", { class: "panel-body inspector-body" });
+  const body = h("div", { class: "panel-body" });
   const panel = h("div", { class: "panel right-panel" }, tabs, body);
 
+  // The pill is a 1px block stretched by transform, never by width: width is a
+  // layout property and animating it relayouts the tab strip every frame.
   function positionPill() {
     const active = tabBtns.find((b) => b.dataset.tab === tab);
     if (!active) return;
-    pill.style.width = `${active.offsetWidth}px`;
-    pill.style.transform = `translateX(${active.offsetLeft}px)`;
-    tabBtns.forEach((b) => b.classList.toggle("on", b.dataset.tab === tab));
+    pill.style.transform =
+      `translateX(${active.offsetLeft}px) scaleX(${active.offsetWidth})`;
+    tabBtns.forEach((b) => {
+      const on = b.dataset.tab === tab;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", String(on));
+      b.tabIndex = on ? 0 : -1;
+    });
   }
 
   // ---- field builders (all register for refresh) ----
@@ -164,8 +183,8 @@ export function buildInspector(app) {
     }
     const clip = store.selectedClip();
     if (!clip) {
-      return [h("div", { class: "empty-state" },
-        icon("target"),
+      return [h("div", { class: "state" },
+        icon("layers"),
         h("p", {}, "Select a clip on the timeline"),
         h("span", {}, "or add one from the Library."))];
     }
@@ -643,7 +662,7 @@ export function buildInspector(app) {
         ),
         est,
       ], { id: "ex-range" }),
-      h("div", { class: "export-cta" }, exportBtn),
+      h("div", { class: "panel-foot" }, exportBtn),
     ];
   }
 

@@ -21,7 +21,8 @@ import {
   invalidatePair, pruneRuntimes,
   cameraStateFrom, applyCameraState, evalCamera,
 } from "./sequence.js";
-import { h, icon, toast, showMenu, closeMenus, modKey } from "./ui/dom.js";
+import { h, toast, showMenu, closeMenus, modKey } from "./ui/dom.js";
+import { iconButton } from "./ui/fields.js";
 import { appNav } from "./ui/appnav.js";
 import { buildLibraryPanel } from "./ui/library.js";
 import { buildInspector } from "./ui/inspector.js";
@@ -278,11 +279,11 @@ function layoutSig() {
 }
 
 // zoom chip
-const zoomPct = h("button", { class: "pct" }, "100%");
+const zoomPct = h("button", { class: "pct", "aria-label": "Zoom level", "aria-haspopup": "menu" }, "100%");
 const zoomChip = h("div", { class: "zoom-chip" },
-  h("button", { class: "icon-btn", onclick: () => nudgeZoom(1 / 1.25) }, icon("minus")),
+  iconButton("minus", { title: "Zoom out", onClick: () => nudgeZoom(1 / 1.25) }),
   zoomPct,
-  h("button", { class: "icon-btn", onclick: () => nudgeZoom(1.25) }, icon("plus")),
+  iconButton("plus", { title: "Zoom in", onClick: () => nudgeZoom(1.25) }),
 );
 zoomPct.addEventListener("click", () => {
   showMenu([
@@ -323,12 +324,7 @@ function nudgeZoom(f) {
 // view, so the grid is exact from the front camera and reads as a tilted
 // plane when orbiting.
 
-const tileDebug = h("canvas", { class: "tile-debug" });
-Object.assign(tileDebug.style, {
-  position: "absolute", left: "0", top: "0", width: "100%", height: "100%",
-  pointerEvents: "none",
-});
-stage.style.position = "relative";
+const tileDebug = h("canvas", { class: "tile-debug", hidden: true });
 stage.append(tileDebug);
 
 /** The tile grid itself, drawn into any 2D context at any size — the DOM
@@ -604,6 +600,8 @@ const app = {
   store,
   actions,
   engine,
+  normalizeProject,
+  projectDuration: () => projectDuration(store.project),
   renderAt: (T) => exportHooks.renderAt(T),   // headless-driving hook
   library: {
     assets: () => [...assetLib.values()].filter((e) => !e.hidden).map((e) => ({ key: e.key, label: e.label, state: e.state, custom: e.custom })),

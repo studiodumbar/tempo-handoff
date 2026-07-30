@@ -15,6 +15,7 @@ export function buildLibraryPanel(app) {
 
   // ---- header: project name + file actions ----
   const nameField = TextField({
+    label: "Project name",
     get: () => store.project.name,
     set: (v) => store.mutate((p) => { p.name = v; }),
   });
@@ -43,8 +44,10 @@ export function buildLibraryPanel(app) {
     seqSection.querySelector(".seq-total").textContent =
       clips.length ? fmtSeconds(segments(clips).at(-1).end) : "";
     if (!clips.length) {
-      seqList.append(h("div", { class: "empty-hint" },
-        "Click a target below to start the sequence."));
+      seqList.append(h("div", { class: "state compact" },
+        icon("layers"),
+        h("p", {}, "No clips yet"),
+        h("span", { class: "lib-sub" }, "Pick one below")));
       return;
     }
     clips.forEach((clip, i) => {

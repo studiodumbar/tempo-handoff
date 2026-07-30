@@ -68,9 +68,9 @@ export function buildTimeline(app) {
   );
 
   const ruler = h("div", { class: "tl-ruler", style: { height: `${RULER_H}px` } });
-  const clipsTrack = h("div", { class: "tl-track tl-clips", style: { height: `${CLIPS_H}px` } });
-  const photoTrack = h("div", { class: "tl-track tl-photo-track", style: { height: `${PHOTO_H}px` } });
-  const camTrack = h("div", { class: "tl-track tl-cam", style: { height: `${CAM_H}px` } });
+  const clipsTrack = h("div", { class: "tl-track", style: { height: `${CLIPS_H}px` } });
+  const photoTrack = h("div", { class: "tl-track", style: { height: `${PHOTO_H}px` } });
+  const camTrack = h("div", { class: "tl-track", style: { height: `${CAM_H}px` } });
   const playhead = h("div", { class: "tl-playhead" }, h("div", { class: "ph-head" }));
   const dropLine = h("div", { class: "tl-droplane", hidden: true });
 
