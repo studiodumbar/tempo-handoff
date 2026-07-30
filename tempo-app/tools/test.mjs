@@ -544,6 +544,44 @@ if (run("motion")) {
     await page.evaluate(() => window.__app.store.undo());
   });
 
+  await t("scrubbing a value does not rebuild the clip list", async () => {
+    const rebuilds = await page.evaluate(async () => {
+      const list = document.querySelector(".seq-list");
+      let n = 0;
+      const mo = new MutationObserver((ms) => {
+        for (const m of ms) if (m.type === "childList" && m.removedNodes.length) n++;
+      });
+      mo.observe(list, { childList: true });
+      // 120 coalesced mutations, as a value drag produces
+      for (let i = 0; i < 120; i++) {
+        window.__app.store.mutate((proj) => {
+          proj.clips[0].trans.spread = 0.3 + i / 400;
+        }, { coalesce: "t.spread" });
+        await new Promise((r) => setTimeout(r, 1));
+      }
+      mo.disconnect();
+      return n;
+    });
+    eq(rebuilds, 0, "clip-list rebuilds during a scrub:");
+  });
+
+  await t("renaming a clip does rebuild the list", async () => {
+    const rebuilds = await page.evaluate(async () => {
+      const list = document.querySelector(".seq-list");
+      let n = 0;
+      const mo = new MutationObserver((ms) => {
+        for (const m of ms) if (m.type === "childList" && m.removedNodes.length) n++;
+      });
+      mo.observe(list, { childList: true });
+      window.__app.store.mutate((proj) => { proj.clips[0].label = "renamed"; });
+      await new Promise((r) => setTimeout(r, 60));
+      mo.disconnect();
+      return n;
+    });
+    ok(rebuilds > 0, "the list ignored a change it displays");
+    await page.evaluate(() => window.__app.store.undo());
+  });
+
   await t("the shortcut sheet opens from the chrome and from ?", async () => {
     await page.click(".appnav .icon-btn");
     await page.waitForTimeout(250);

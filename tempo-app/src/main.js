@@ -1090,7 +1090,16 @@ store.on("project", () => {
   if (store.session.time > total) actions.seek(total);
 });
 store.on("viewzoom", layoutViewport);
-window.addEventListener("resize", layoutViewport);
+/* A window drag fires resize dozens of times a second, and each call resizes
+   the renderer, both render targets and the occlusion pass — a full GPU
+   reallocation per event. Coalescing to one per frame makes a drag cost one
+   reallocation per painted frame instead of one per event. */
+let resizePending = false;
+window.addEventListener("resize", () => {
+  if (resizePending) return;
+  resizePending = true;
+  requestAnimationFrame(() => { resizePending = false; layoutViewport(); });
+});
 
 // Only what the open project actually uses. The rest of the catalogue loads
 // when a clip asks for it, which is what addClip already does.

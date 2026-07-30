@@ -37,7 +37,24 @@ export function buildLibraryPanel(app) {
       h("span", { class: "lib-count seq-total" })),
     seqList);
 
-  function renderSequence() {
+  /* store.emit("project") fires on every coalesced scrub tick, and this used to
+     rebuild the whole clip list from scratch each time — so dragging any value
+     in the inspector re-created every row of this panel, continuously. The
+     signature covers everything a row DISPLAYS; anything else is a no-op, and
+     selection alone just moves a class. */
+  let seqSig = null;
+
+  function sequenceSignature() {
+    const { clips } = store.project;
+    return clips.map((c, i) =>
+      `${c.id}:${c.kind}:${c.label}:${clipDuration(c, i).toFixed(3)}`).join("|");
+  }
+
+  function renderSequence(force = false) {
+    const sig = sequenceSignature();
+    if (!force && sig === seqSig) { syncSelection(); return; }
+    seqSig = sig;
+
     const { clips } = store.project;
     const sel = store.session.selection;
     seqList.textContent = "";
@@ -78,6 +95,15 @@ export function buildLibraryPanel(app) {
       });
       seqList.append(rowEl);
     });
+  }
+
+  /** Selection is a class, not a reason to rebuild the list. */
+  function syncSelection() {
+    const sel = store.session.selection;
+    for (const rowEl of seqList.querySelectorAll(".seq-row")) {
+      rowEl.classList.toggle(
+        "selected", sel?.type === "clip" && sel.id === rowEl.dataset.id);
+    }
   }
 
   // pointer-based row reorder with an insert line
@@ -193,7 +219,7 @@ export function buildLibraryPanel(app) {
     query = searchInput.value.trim().toLowerCase();
     clearBtn.hidden = !query;
     renderAnims();
-    renderAssets();
+    renderAssets(true);      // the filter changed, so the list must
   };
   searchInput.addEventListener("input", applyFilter);
   searchInput.addEventListener("keydown", (e) => {
@@ -230,9 +256,13 @@ export function buildLibraryPanel(app) {
   }
 
   const assetList = h("div", { class: "lib-list" });
-  function renderAssets() {
-    assetList.textContent = "";
+  let assetSig = null;
+  function renderAssets(force = false) {
     const shown = app.library.assets().filter((a) => hit(a.label));
+    const sig = shown.map((a) => `${a.key}:${a.state}:${a.custom}`).join("|");
+    if (!force && sig === assetSig) return;
+    assetSig = sig;
+    assetList.textContent = "";
     for (const a of shown) {
       assetList.append(libRow({
         kind: "asset", key: a.key, label: a.label, state: a.state,
@@ -265,8 +295,8 @@ export function buildLibraryPanel(app) {
   renderSequence();
   renderAnims();
   renderAssets();
-  store.on("project", renderSequence);
-  store.on("selection", renderSequence);
+  store.on("project", () => renderSequence());
+  store.on("selection", syncSelection);
   app.library.onChanged(renderAssets);
   store.on("project", () => nameField.refresh());
 

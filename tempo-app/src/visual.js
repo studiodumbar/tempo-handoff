@@ -453,7 +453,16 @@ function refreshLabel() {
   );
 }
 
-window.addEventListener("resize", layout);
+/* A window drag fires resize dozens of times a second, and each call resizes
+   the renderer, both render targets and the occlusion pass — a full GPU
+   reallocation per event. Coalescing to one per frame makes a drag cost one
+   reallocation per painted frame instead of one per event. */
+let resizePending = false;
+window.addEventListener("resize", () => {
+  if (resizePending) return;
+  resizePending = true;
+  requestAnimationFrame(() => { resizePending = false; layout(); });
+});
 
 // ---- the loop -----------------------------------------------------------------
 
