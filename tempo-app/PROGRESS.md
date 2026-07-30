@@ -43,3 +43,6 @@ Baseline perf JSON: `shots/baseline/perf.json`.
 ## Log
 
 - `e4a480d` Checkpoint: TEMPO app as found (hatch-fusion studio) — pre-existing tree, committed as the branch point.
+- `364eaa5` Audit: baseline, tooling, ranked findings. Gate tooling in place (check / shoot / perf).
+- `8f34526` Remove Sequence mode and dead code — journey.{html,css,js}, shapeModes.js, shapes.mjs, tweakpane.min.js (152 kB, no importer). Two unused imports dropped.
+- `fdcc424` Design system: token layer, hugeicons via a generator, app-wide focus ring, complete reduced-motion, TEMPO wordmark. 26 tests green. Perf level with baseline (+26 kB app code for the icon module).
