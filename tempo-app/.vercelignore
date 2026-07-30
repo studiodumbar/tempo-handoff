@@ -1,0 +1,13 @@
+# The GLBs are 96 MB of a 101 MB project and made the upload crawl. Everything
+# else together is 5.4 MB, so they are the whole cost of a deploy.
+#
+# TRADE-OFF: with these excluded the 3D targets (hoodie, tshirt, cap, mug,
+# long sleeve) 404 in production — the editor still opens on its image plate
+# and every animation works, but picking a model gets nothing. Drop this line
+# to ship them again, or host them somewhere with a CDN and point ASSET_DEFS
+# at the URLs.
+models/
+
+# working files that never need to ship
+mpp.log
+*.py

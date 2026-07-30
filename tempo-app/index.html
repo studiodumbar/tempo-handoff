@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>hatch visual</title>
+<link rel="stylesheet" href="./styles.css" />
+<link rel="stylesheet" href="./visual.css" />
+<script type="importmap">
+  { "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+  <!-- Visual — the default mode: place ONE thing (animation, shape, GLB,
+       vector art), tune it with the scene variables, export a still. -->
+  <div id="viewport">
+    <div id="stage">
+      <canvas id="view"></canvas>
+      <div class="stage-label"></div>
+    </div>
+  </div>
+
+  <div class="panel right-panel" id="vpanel"></div>
+
+  <div id="drop"><div>Drop a .glb / .svg / .png — it joins the library</div></div>
+  <input id="file" type="file" accept=".glb,.gltf,.svg,.png,.jpg,.jpeg" hidden />
+
+  <div id="fatal" hidden>
+    <div>
+      <h1>WebGL2 required</h1>
+      <p>This studio needs a WebGL2-capable browser (Chrome, Firefox, Safari 16+).</p>
+    </div>
+  </div>
+
+  <script type="module" src="./src/visual.js"></script>
+</body>
+</html>

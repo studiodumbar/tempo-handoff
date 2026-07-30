@@ -1,0 +1,258 @@
+{
+  "version": 1,
+  "name": "MPP",
+  "comp": {
+    "width": 1080,
+    "height": 1080,
+    "fps": 60,
+    "bg": "#0b0b0c",
+    "ink": "#f4f4f1"
+  },
+  "scene": {
+    "terminal": true,
+    "phosphor": true,
+    "persist": 0.1,
+    "cellW": 6,
+    "cellH": 60,
+    "dotR": 0.64,
+    "dotThresh": 0.01,
+    "dither": 0.84,
+    "blocks": 0,
+    "blockLo": 0.85,
+    "blockHi": 2.4,
+    "shade": 0,
+    "gain": 0.42,
+    "baseSize": 0.02,
+    "solidity": 1,
+    "occBias": 0.05,
+    "fov": 43,
+    "stepFps": 24,
+    "gridLock": true,
+    "inkLevels": 6,
+    "flicker": 0.5
+  },
+  "clips": [
+    {
+      "id": "shc-sphere",
+      "kind": "mode",
+      "key": "sphere",
+      "label": "sphere",
+      "hold": 1.6,
+      "trans": {
+        "duration": 0,
+        "ease": 0,
+        "staggerAxis": 1,
+        "spread": 0.53,
+        "path": 3,
+        "pathAmp": 1,
+        "scatter": 0,
+        "swirl": 1
+      },
+      "params": {}
+    },
+    {
+      "id": "id1irlk",
+      "kind": "type",
+      "key": "wordmark",
+      "label": "wordmark",
+      "hold": 1.6,
+      "trans": {
+        "duration": 0.9,
+        "ease": 0,
+        "staggerAxis": 1,
+        "spread": 0.53,
+        "path": 3,
+        "pathAmp": 0.58,
+        "scatter": 0,
+        "swirl": 1
+      },
+      "params": {
+        "cell": 48,
+        "rows": 0.85,
+        "gap": 0,
+        "leading": 1.15,
+        "weight": 91,
+        "shift x": 0,
+        "shift y": 0,
+        "speed": 0.3,
+        "spread": 8,
+        "delay": 0,
+        "stretch lo": 1.6,
+        "stretch hi": 7,
+        "thick lo": 0.34,
+        "thick hi": 0.85
+      },
+      "text": "MPP",
+      "align": "center",
+      "dir": "horizontal",
+      "waveOn": true
+    },
+    {
+      "id": "shc-hoodie",
+      "kind": "asset",
+      "key": "hoodie",
+      "label": "hoodie",
+      "hold": 2.2,
+      "trans": {
+        "duration": 1.45,
+        "ease": 0,
+        "staggerAxis": 1,
+        "spread": 0.62,
+        "path": 3,
+        "pathAmp": 0.75,
+        "scatter": 0,
+        "swirl": 0.5
+      },
+      "params": {}
+    },
+    {
+      "id": "shc-gyro",
+      "kind": "mode",
+      "key": "gyro",
+      "label": "gyro",
+      "hold": 1.8,
+      "trans": {
+        "duration": 1.1,
+        "ease": 1,
+        "staggerAxis": 2,
+        "spread": 0.5,
+        "path": 2,
+        "pathAmp": 0.65,
+        "scatter": 0,
+        "swirl": -0.45
+      },
+      "params": {}
+    },
+    {
+      "id": "shc-zoom",
+      "kind": "mode",
+      "key": "zoom",
+      "label": "zoom",
+      "hold": 2.3,
+      "trans": {
+        "duration": 0.9,
+        "ease": 0,
+        "staggerAxis": 0,
+        "spread": 0.35,
+        "path": 1,
+        "pathAmp": 0.45,
+        "scatter": 0,
+        "swirl": 0
+      },
+      "params": {
+        "cycle": 3.2
+      }
+    },
+    {
+      "id": "shc-pulse",
+      "kind": "mode",
+      "key": "pulse",
+      "label": "pulse",
+      "hold": 1.8,
+      "trans": {
+        "duration": 1,
+        "ease": 1,
+        "staggerAxis": 2,
+        "spread": 0.55,
+        "path": 3,
+        "pathAmp": 0.5,
+        "scatter": 0.08,
+        "swirl": 0.3
+      },
+      "params": {}
+    },
+    {
+      "id": "shc-wordmark",
+      "kind": "type",
+      "key": "wordmark",
+      "label": "wordmark",
+      "hold": 4.27,
+      "trans": {
+        "duration": 1.7,
+        "ease": 0,
+        "staggerAxis": 0,
+        "spread": 0.64,
+        "path": 1,
+        "pathAmp": 0.55,
+        "scatter": 0,
+        "swirl": 0
+      },
+      "params": {
+        "cell": 42,
+        "rows": 0.76,
+        "gap": 2,
+        "leading": 1.12,
+        "weight": 46,
+        "shift x": 72,
+        "shift y": 0,
+        "speed": 0.3,
+        "spread": 5,
+        "delay": 0.1,
+        "stretch lo": 1.8,
+        "stretch hi": 8.25,
+        "thick lo": 0.34,
+        "thick hi": 0.85
+      },
+      "text": "MPP",
+      "align": "center",
+      "dir": "horizontal",
+      "waveOn": true
+    }
+  ],
+  "camera": {
+    "follow": true,
+    "kfs": [
+      {
+        "id": "shc-cam1",
+        "t": 0,
+        "ease": "smooth",
+        "az": -0.26,
+        "el": 0.05,
+        "dist": 3.55,
+        "tx": 0,
+        "ty": 0,
+        "tz": 0
+      },
+      {
+        "id": "shc-cam2",
+        "t": 4.4,
+        "ease": "expoInOut",
+        "az": 0.42,
+        "el": 0.15,
+        "dist": 3.1,
+        "tx": 0,
+        "ty": 0,
+        "tz": 0
+      },
+      {
+        "id": "shc-cam3",
+        "t": 8.8,
+        "ease": "expoInOut",
+        "az": 0.02,
+        "el": 0.01,
+        "dist": 3.65,
+        "tx": 0,
+        "ty": 0,
+        "tz": 0
+      },
+      {
+        "id": "shc-cam4",
+        "t": 13.2,
+        "ease": "smooth",
+        "az": -0.4,
+        "el": 0.1,
+        "dist": 3.35,
+        "tx": 0,
+        "ty": 0,
+        "tz": 0
+      }
+    ]
+  },
+  "export": {
+    "format": "mp4",
+    "fps": 60,
+    "start": 0,
+    "end": 0,
+    "quality": 1
+  }
+}

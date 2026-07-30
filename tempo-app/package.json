@@ -1,0 +1,8 @@
+{
+  "name": "hatch-fusion",
+  "private": true,
+  "description": "hatch·fusion studio — a timeline-based motion tool where hatch-studio animations and GLB assets share one particle pool. Sequence targets, keyframe the camera, export MP4 / PNG sequences.",
+  "scripts": {
+    "start": "python3 serve.py"
+  }
+}
