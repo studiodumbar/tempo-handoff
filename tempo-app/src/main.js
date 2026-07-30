@@ -625,6 +625,18 @@ const actions = {
 
   importGlb() { fileInput.click(); },
 
+  /** Send the user to the library — opening the drawer first if the window is
+      narrow enough that it is closed, so "Add a clip" always lands somewhere
+      visible. */
+  focusLibrary() {
+    const panel = document.querySelector(".left-panel");
+    if (!panel) return;
+    if (getComputedStyle(document.querySelector(".lib-tab")).display !== "none") {
+      setLibOpen(true);
+    }
+    panel.querySelector(".lib-search input")?.focus();
+  },
+
   addPhoto(key, label) {
     const start = Math.max(0, store.session.time || 0);
     const id = uid();
@@ -1022,7 +1034,7 @@ const exportHooks = {
 
 function starterProject() {
   const p = defaultProject();
-  p.name = "Hatch motion";
+  p.name = "Untitled";
   const add = (kind, key, label, hold, dur) => {
     const c = makeClip(kind, key, label);
     c.hold = hold;
@@ -1046,6 +1058,30 @@ afterProjectLoad();
 const inspectorPanel = buildInspector(app);
 inspectorPanel.prepend(appNav("motion", SHORTCUTS));
 document.body.append(buildLibraryPanel(app), inspectorPanel, buildTimeline(app));
+
+// ---- the library drawer ------------------------------------------------------
+// Below 900px the library docks out over the stage instead of squeezing it.
+// Its handle sits on the edge it comes from, which is the only place a drawer
+// control belongs; CSS decides whether the handle exists at all.
+
+const libTab = iconButton("layers", {
+  title: "Library",
+  cls: "lib-tab",
+  pressed: false,
+  onClick: () => setLibOpen(!document.body.classList.contains("lib-open")),
+});
+document.body.append(libTab);
+
+function setLibOpen(open) {
+  document.body.classList.toggle("lib-open", open);
+  libTab.setAttribute("aria-pressed", String(open));
+}
+
+// the stage is the way out: tapping what the drawer covers closes it
+viewport.addEventListener("pointerdown", () => setLibOpen(false));
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") setLibOpen(false);
+});
 
 store.on("project", () => {
   pruneRuntimes(store.project.clips);

@@ -106,6 +106,8 @@
   /* ---- layout ---- */
   --left-w: 244px;
   --right-w: 276px;
+  /* a fallback only — buildTimeline() sets the real value from its own lanes,
+     so the panel and its contents can never disagree again */
   --tl-h: 232px;
   --gap: var(--sp-5);
   --wordmark-h: 13px;
@@ -287,8 +289,73 @@ body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select: no
 }
 
 body.ui-hidden .panel,
-body.ui-hidden .zoom-chip { display: none; }
+body.ui-hidden .zoom-chip,
+body.ui-hidden .lib-tab { display: none; }
 body.ui-hidden #viewport { inset: 0; }
+
+/* The library drawer's handle, pinned to the edge the drawer comes from —
+   the only place a drawer control belongs. Declared BEFORE the media query
+   that reveals it: the two rules share specificity, so source order decides. */
+.icon-btn.lib-tab {
+  position: fixed;
+  z-index: 41;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  left: var(--gap);
+  top: var(--gap);
+  width: var(--ctl-l);
+  height: var(--ctl-l);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--elev-3);
+  color: var(--text-dim);
+  transition: transform var(--dur-4) var(--ease-drawer), color var(--dur-2) ease;
+}
+body.lib-open .icon-btn.lib-tab {
+  transform: translateX(calc(232px + var(--sp-4)));
+  color: var(--text);
+}
+
+/* ---- responsive ---------------------------------------------------------------
+   Panels were fixed at 244 + 276 px with the viewport inset by those constants,
+   so below about 1100px they overlapped the stage: at 768 the Motion stage
+   rendered at 15% in a corner behind two panels. Three tiers now, and the
+   narrowest turns the library into a drawer rather than pretending 212px of
+   stage is a workspace. */
+
+@media (max-width: 1180px) {
+  :root {
+    --left-w: 208px;
+    --right-w: 248px;
+    --gap: var(--sp-4);
+  }
+  .prop-row { grid-template-columns: 72px 1fr; }
+  .tl-gutter { width: 76px; }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --left-w: 0px;
+    --right-w: 240px;
+  }
+  /* the library slides in over the stage, from the edge it lives on */
+  .left-panel {
+    width: 232px;
+    left: var(--gap);
+    z-index: 40;
+    transform: translateX(calc(-100% - var(--gap) * 2));
+    transition: transform var(--dur-4) var(--ease-drawer);
+    box-shadow: var(--elev-4);
+  }
+  body.lib-open .left-panel { transform: none; }
+  .icon-btn.lib-tab { display: flex; }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .icon-btn.lib-tab:hover { color: var(--text); }
+}
 
 .panel-body {
   flex: 1;
@@ -1004,6 +1071,9 @@ button:disabled .icon { opacity: 0.5; }
   .lib-row:hover .lib-add { opacity: 1; transform: none; }
 }
 
+.lib-search { margin-top: 0; }
+.lib-none { padding: var(--sp-4) var(--gutter); color: var(--text-faint); }
+
 .lib-import {
   display: flex;
   align-items: center;
@@ -1084,7 +1154,9 @@ button:disabled .icon { opacity: 0.5; }
 .tl-transport .play-btn { width: var(--ctl-l); height: var(--ctl-l); color: var(--text); }
 .tl-h-right { display: flex; gap: var(--sp-1); justify-self: end; }
 
-.tl-body { display: flex; flex: 1; min-height: 0; }
+/* a window too short for every lane scrolls them rather than cropping one:
+   a camera track hidden below the panel edge is worse than one you scroll to */
+.tl-body { display: flex; flex: 1; min-height: 0; overflow-y: auto; }
 .tl-gutter {
   flex: none;
   width: 92px;
@@ -1718,6 +1790,13 @@ button:disabled .icon { opacity: 0.5; }
     animation-duration: 2s !important;
   }
   .skeleton { animation: none !important; background: var(--field); }
+
+  /* the drawer and its handle carry their own transition at a higher
+     specificity than the .icon-btn rule above, so they need naming */
+  .icon-btn.lib-tab, .left-panel {
+    transition-property: background-color, color, opacity, box-shadow !important;
+    transition-duration: var(--dur-2) !important;
+  }
 
   /* entrances land immediately rather than sliding or scaling in */
   .menu, .menu.on { transform: none !important; }

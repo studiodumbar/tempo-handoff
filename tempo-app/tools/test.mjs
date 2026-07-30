@@ -523,6 +523,27 @@ if (run("motion")) {
     eq(await clips(), before, "undo did not restore it");
   });
 
+  await t("the library filters, and Enter takes the first match", async () => {
+    const all = await page.evaluate(() =>
+      document.querySelectorAll(".lib-section .lib-list .lib-row").length);
+    ok(all > 50, `library showed only ${all} rows`);
+    await page.fill(".lib-search input", "globe");
+    await page.waitForTimeout(200);
+    const few = await page.evaluate(() =>
+      document.querySelectorAll(".lib-section .lib-list .lib-row").length);
+    ok(few > 0 && few < all, `filter left ${few} of ${all}`);
+    const before = await clips();
+    await page.press(".lib-search input", "Enter");
+    await page.waitForTimeout(300);
+    eq(await clips(), before + 1, "Enter did not add the first match");
+    await page.press(".lib-search input", "Escape");
+    await page.waitForTimeout(200);
+    eq(await page.evaluate(() =>
+      document.querySelectorAll(".lib-section .lib-list .lib-row").length), all,
+    "Escape did not clear the filter");
+    await page.evaluate(() => window.__app.store.undo());
+  });
+
   await t("the shortcut sheet opens from the chrome and from ?", async () => {
     await page.click(".appnav .icon-btn");
     await page.waitForTimeout(250);
@@ -544,6 +565,81 @@ if (run("motion")) {
   });
 
   await ctx.close();
+}
+
+// ============================================================ layout
+if (run("layout")) {
+  group = "layout";
+  for (const [surface, url] of [["visual", "/index.html"], ["motion", "/editor.html"]]) {
+    for (const w of [1440, 1024, 768]) {
+      const ctx = await browser.newContext({ viewport: { width: w, height: 900 } });
+      const page = await ctx.newPage();
+      await page.goto(BASE + url, { waitUntil: "load" });
+      await page.waitForTimeout(1600);
+
+      await t(`${surface} at ${w}: nothing overlaps the stage`, async () => {
+        const hits = await page.evaluate(() => {
+          const stage = document.getElementById("stage").getBoundingClientRect();
+          const out = [];
+          for (const p of document.querySelectorAll(".panel")) {
+            const cs = getComputedStyle(p);
+            if (cs.display === "none") continue;
+            // a drawer parked off-canvas is not overlapping anything
+            if (cs.transform !== "none" && cs.transform.includes("-")) continue;
+            const r = p.getBoundingClientRect();
+            const over = !(r.right <= stage.left || r.left >= stage.right
+              || r.bottom <= stage.top || r.top >= stage.bottom);
+            if (over) out.push(p.className);
+          }
+          return out;
+        });
+        eq(hits.join(", "), "", "panels over the stage:");
+      });
+
+      await t(`${surface} at ${w}: the stage is a usable size`, async () => {
+        const frac = await page.evaluate(() => {
+          const s = document.getElementById("stage").getBoundingClientRect();
+          return +(s.width / window.innerWidth).toFixed(3);
+        });
+        ok(frac > 0.35, `stage took only ${Math.round(frac * 100)}% of the width`);
+      });
+
+      await t(`${surface} at ${w}: no content is cut off inside a panel`, async () => {
+        const clipped = await page.evaluate(() => {
+          const out = [];
+          for (const p of document.querySelectorAll(".panel")) {
+            if (getComputedStyle(p).display === "none") continue;
+            for (const kid of p.children) {
+              const cs = getComputedStyle(kid);
+              if (cs.overflowY === "auto" || cs.overflowY === "scroll") continue;
+              if (kid.scrollHeight > kid.clientHeight + 2) {
+                out.push(`${p.className.split(" ")[1]} > ${kid.className}`);
+              }
+            }
+          }
+          return out;
+        });
+        eq(clipped.join(", "), "", "clipped:");
+      });
+
+      await t(`${surface} at ${w}: the drawer handle appears only when needed`, async () => {
+        const shown = await page.evaluate(() => {
+          const tab = document.querySelector(".lib-tab");
+          return tab ? getComputedStyle(tab).display !== "none" : false;
+        });
+        const wantsDrawer = w <= 900 && surface === "motion";
+        eq(shown, wantsDrawer, `drawer handle at ${w}px:`);
+      });
+
+      await t(`${surface} at ${w}: the page never scrolls sideways`, async () => {
+        const over = await page.evaluate(() =>
+          document.documentElement.scrollWidth - window.innerWidth);
+        ok(over <= 0, `${over}px of horizontal overflow`);
+      });
+
+      await ctx.close();
+    }
+  }
 }
 
 await browser.close();

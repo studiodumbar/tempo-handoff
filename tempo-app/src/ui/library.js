@@ -174,17 +174,73 @@ export function buildLibraryPanel(app) {
     return rowEl;
   }
 
-  const animList = h("div", { class: "lib-list" },
-    MODES.map((m) => libRow({ kind: "mode", key: m.key, label: m.label })));
+  // ---- search ----
+  // 89 animations in a 244px column is a 2 300px scroll of names like "zoom",
+  // "zoom out", "zoom quarter", "zoom spin", "zoom lean". A filter is the
+  // difference between choosing from a list and scrolling one.
+  let query = "";
+  const searchInput = h("input", {
+    type: "text", spellcheck: false, autocomplete: "off",
+    placeholder: "Filter", "aria-label": "Filter the library",
+  });
+  const clearBtn = h("button", {
+    class: "search-clear", type: "button", "aria-label": "Clear filter", hidden: true,
+  }, icon("x"));
+  const searchField = h("div", { class: "search-field lib-search" },
+    icon("search"), searchInput, clearBtn);
+
+  const applyFilter = () => {
+    query = searchInput.value.trim().toLowerCase();
+    clearBtn.hidden = !query;
+    renderAnims();
+    renderAssets();
+  };
+  searchInput.addEventListener("input", applyFilter);
+  searchInput.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") {
+      if (query) { searchInput.value = ""; applyFilter(); }
+      else searchInput.blur();
+    } else if (e.key === "Enter") {
+      // type three letters, press Enter — the common case
+      const first = animList.querySelector(".lib-row") || assetList.querySelector(".lib-row");
+      first?.click();
+    }
+  });
+  clearBtn.addEventListener("click", () => {
+    searchInput.value = "";
+    applyFilter();
+    searchInput.focus();
+  });
+
+  const hit = (label) => !query || label.toLowerCase().includes(query);
+
+  const animList = h("div", { class: "lib-list" });
+  const animCount = h("span", { class: "lib-count" });
+  function renderAnims() {
+    animList.textContent = "";
+    const shown = MODES.filter((m) => hit(m.label));
+    animCount.textContent = query ? `${shown.length}/${MODES.length}` : String(MODES.length);
+    for (const m of shown) {
+      animList.append(libRow({ kind: "mode", key: m.key, label: m.label }));
+    }
+    if (!shown.length && query) {
+      animList.append(h("div", { class: "lib-none" }, "No match"));
+    }
+  }
 
   const assetList = h("div", { class: "lib-list" });
   function renderAssets() {
     assetList.textContent = "";
-    for (const a of app.library.assets()) {
+    const shown = app.library.assets().filter((a) => hit(a.label));
+    for (const a of shown) {
       assetList.append(libRow({
         kind: "asset", key: a.key, label: a.label, state: a.state,
         sub: a.custom === "image" ? "image" : a.custom ? "glb" : null,
       }));
+    }
+    if (!shown.length && query) {
+      assetList.append(h("div", { class: "lib-none" }, "No match"));
     }
   }
 
@@ -195,8 +251,8 @@ export function buildLibraryPanel(app) {
   const body = h("div", { class: "panel-body" },
     seqSection,
     h("div", { class: "lib-section" },
-      h("div", { class: "lib-title" }, "Animations",
-        h("span", { class: "lib-count" }, String(MODES.length))),
+      h("div", { class: "lib-title" }, "Animations", animCount),
+      searchField,
       animList),
     h("div", { class: "lib-section" },
       h("div", { class: "lib-title" }, "Assets"),
@@ -207,6 +263,7 @@ export function buildLibraryPanel(app) {
   const panel = h("div", { class: "panel left-panel" }, header, body);
 
   renderSequence();
+  renderAnims();
   renderAssets();
   store.on("project", renderSequence);
   store.on("selection", renderSequence);

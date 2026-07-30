@@ -20,9 +20,17 @@ const LANE_H = 46;       // one clip lane — clips alternate between two (A/B
 const CLIPS_H = LANE_H * 2 + 6;   // roll: the overlap IS the transition)
 const PHOTO_H = 34;      // the photo lane: pictures OVER the particle track
 const CAM_H = 26;
+const HEAD_H = 40;       // transport row
+const BORDERS = 2;
+
+/* The panel's height was a hand-kept constant in the stylesheet, and the two
+   drifted: at the narrow breakpoint the camera lane fell off the bottom of its
+   own panel. Deriving it from the lanes means they cannot disagree again. */
+export const TIMELINE_H = HEAD_H + RULER_H + CLIPS_H + PHOTO_H + CAM_H + BORDERS;
 
 export function buildTimeline(app) {
   const { store } = app;
+  document.documentElement.style.setProperty("--tl-h", `${TIMELINE_H}px`);
 
   // ---- header: readout · transport · zoom ----
   const readout = h("span", { class: "tl-time" }, "0:00.00");

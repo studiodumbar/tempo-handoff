@@ -183,10 +183,14 @@ export function buildInspector(app) {
     }
     const clip = store.selectedClip();
     if (!clip) {
+      // one line and the action, not a sentence and a footnote
       return [h("div", { class: "state" },
         icon("layers"),
-        h("p", {}, "Select a clip on the timeline"),
-        h("span", {}, "or add one from the Library."))];
+        h("p", {}, "No clip selected"),
+        button("Add a clip", {
+          variant: "subtle", iconName: "plus",
+          onClick: () => app.actions.focusLibrary(),
+        }))];
     }
     const cid = clip.id;
     const getClip = () => store.project.clips.find((c) => c.id === cid);

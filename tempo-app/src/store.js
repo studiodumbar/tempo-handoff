@@ -9,7 +9,10 @@
 
 import { MODE_BY_KEY } from "./modes.js";
 
-const STORAGE_KEY = "hatchfusion.project.v1";
+const STORAGE_KEY = "tempo.project.v1";
+// projects autosaved under the old name still open — read once, then write
+// forward under the new key
+const LEGACY_KEY = "hatchfusion.project.v1";
 
 let _id = Math.floor(Date.now() % 1e7);
 export const uid = () => `id${(_id++).toString(36)}`;
@@ -292,7 +295,7 @@ class Store {
 
   loadAutosave() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY);
       if (!raw) return false;
       const p = JSON.parse(raw);
       if (p && p.version === 1 && Array.isArray(p.clips)) {
