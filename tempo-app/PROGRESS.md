@@ -28,7 +28,7 @@ transfer, boot-to-first-frame, sustained frame rate and main-thread blocking.
 | p95 frame | 9.2 ms | 9.1 ms |
 | Worst frame | 10.3 ms | 9.4 ms |
 | Long tasks (>50 ms) | 82, 98, 65, 116, 189 ms | 73, 114, 64, 182, 218 ms |
-| JS heap after boot | 141.1 MB | 149.7 MB |
+| Retained JS heap | 141.1 MB | 132.6 MB |
 
 Largest modules (both surfaces): `models/tshirt.glb` 10 679 kB,
 `models/cap.glb` 7 085 kB, `plates/longsleeve.png` 2 698 kB (fetched twice),
@@ -38,7 +38,14 @@ Largest modules (both surfaces): `models/tshirt.glb` 10 679 kB,
 No later phase may regress these numbers.
 
 Baseline screenshots: `shots/baseline/{visual,motion}-{1440,1024,768}.png`.
-Baseline perf JSON: `shots/baseline/perf.json`.
+Baseline perf JSON: `shots/baseline/perf.json`, `shots/baseline/perf-gc.json`.
+
+**Correction, same day.** The first run read `usedJSHeapSize` without forcing a
+collection, so the heap column measured GC timing as much as the app. `perf.mjs`
+now launches with `--expose-gc` and collects twice before reading, and the
+baseline was re-measured at commit `e4a480d` from a worktree served on :8485.
+The heap row above is the corrected figure; every other row was unchanged by
+the fix.
 
 ## Log
 

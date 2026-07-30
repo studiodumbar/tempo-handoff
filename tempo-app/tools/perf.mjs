@@ -25,7 +25,11 @@ const SURFACES = [
 ];
 
 const browser = await chromium.launch({
-  args: ["--use-gl=angle", "--use-angle=metal", "--enable-unsafe-swiftshader"],
+  // --expose-gc so the heap figure is retained memory, not "whatever the
+  // collector had not got round to yet" — without it the number tracks GC
+  // timing more than it tracks the app
+  args: ["--use-gl=angle", "--use-angle=metal", "--enable-unsafe-swiftshader",
+    "--js-flags=--expose-gc"],
 });
 
 const out = [];
@@ -81,6 +85,10 @@ for (const s of SURFACES) {
     };
     requestAnimationFrame(tick);
   }));
+
+  await tab.evaluate(async () => {
+    if (typeof gc === "function") { gc(); await new Promise((r) => setTimeout(r, 250)); gc(); }
+  });
 
   const nav = await tab.evaluate(() => {
     const n = performance.getEntriesByType("navigation")[0] || {};

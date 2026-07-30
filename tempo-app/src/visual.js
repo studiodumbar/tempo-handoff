@@ -182,29 +182,55 @@ async function ensureAsset(key) {
   }
 }
 
-// Shipped images beyond the default plate — registered under stable keys
-// so they are part of the app on this page too.
+// Shipped images beyond the default plate. They are part of the APP, so they
+// appear in the picker from the first frame — but the pixels only arrive when
+// one is actually chosen. longsleeve.png alone is 2.7 MB; paying that at boot
+// for an image most sessions never open is the wrong trade.
 const SHIPPED_IMAGES = [{ key: "longsleeve", url: "./plates/longsleeve.png" }];
 
-async function ensureShippedImages() {
+function registerShippedImages() {
   for (const def of SHIPPED_IMAGES) {
-    if (assetLib.has(def.key)) continue;
-    try {
-      const res = await fetch(def.url);
-      if (!res.ok) continue;
-      const file = new File([await res.blob()], def.url.split("/").pop(),
-                            { type: "image/png" });
-      const mode = await imageModeFromFile(file, engine.N);
-      mode.key = `asset:${def.key}`;
-      mode.label = def.key;
-      assetLib.set(def.key, mode);
-      imports.push({ key: def.key, label: def.key });
-      loadedPairKey = "";
-      buildPanel();
-    } catch (err) {
-      console.error("shipped image", def.key, err);
+    if (!imports.some((i) => i.key === def.key)) {
+      imports.push({ key: def.key, label: def.key, url: def.url });
     }
   }
+}
+
+/** Fetch and trace a shipped image on demand. Resolves once it is in the
+    library, so callers can await the first render being possible. */
+async function ensureShippedImage(key) {
+  if (assetLib.has(key)) return assetLib.get(key);
+  const def = SHIPPED_IMAGES.find((d) => d.key === key);
+  if (!def) return null;
+  assetLib.set(key, null);                       // claim it: one fetch, not N
+  try {
+    const res = await fetch(def.url);
+    if (!res.ok) throw new Error(`${res.status}`);
+    const file = new File([await res.blob()], def.url.split("/").pop(),
+                          { type: "image/png" });
+    const mode = await imageModeFromFile(file, engine.N);
+    mode.key = `asset:${key}`;
+    mode.label = key;
+    assetLib.set(key, mode);
+    loadedPairKey = "";
+    refreshLabel();
+    buildPanel();
+    return mode;
+  } catch (err) {
+    assetLib.delete(key);
+    console.error("shipped image", key, err);
+    toast(`Could not open ${key} — ${err.message || err}`, { kind: "error" });
+    return null;
+  }
+}
+
+/** The one door every target goes through: resolve whatever `asset:<key>`
+    needs before it can draw, whether that is a GLB, a shipped plate or
+    something already in memory. */
+function ensureTarget(key) {
+  if (key === DEFAULT_PLATE.key) return ensureDefaultPlate();
+  if (SHIPPED_IMAGES.some((d) => d.key === key)) return ensureShippedImage(key);
+  return ensureAsset(key);
 }
 
 async function importFile(file) {
@@ -254,7 +280,7 @@ function clipForTarget(t) {
 function setTarget(t) {
   if (t === config.target) return;
   const r = parseTarget(t);
-  if (r.kind === "asset") ensureAsset(r.key);
+  if (r.kind === "asset") ensureTarget(r.key);
   anim = { from: config.target, start: clock };
   config.target = t;
   saveConfig();
@@ -765,14 +791,13 @@ window.__visual = {
     renderFrame(sceneTime(T), 1, 0); },
 };
 
+// Boot fetches exactly what the first frame needs. Everything else — every
+// GLB in the catalogue, every shipped plate — arrives when it is chosen.
 ensureDefaultPlate();          // the plate this editor opens on
-ensureShippedImages();         // the other shipped plates
+registerShippedImages();       // named in the picker, fetched on demand
 {
   const r = parseTarget(config.target);
-  if (r.kind === "asset" && r.key !== DEFAULT_PLATE.key) ensureAsset(r.key);
-}
-if (params.get("preload") !== "0") {
-  (async () => { for (const d of ASSET_DEFS) await ensureAsset(d.key); })();
+  if (r.kind === "asset" && r.key !== DEFAULT_PLATE.key) ensureTarget(r.key);
 }
 
 buildPanel();

@@ -82,7 +82,9 @@ setAssetResolver((key) => assetLib.get(key)?.mode || null);
 
 async function ensureAsset(key) {
   const entry = assetLib.get(key);
-  if (!entry || entry.state === "ready" || entry.state === "loading" || !entry.def) return;
+  if (!entry || entry.state === "ready" || entry.state === "loading") return;
+  if (entry.shipped) return loadShippedImage(entry);
+  if (!entry.def) return;
   entry.state = "loading";
   libChanged();
   try {
@@ -183,28 +185,49 @@ async function matchImageToAsset(imgMode, assetKey) {
   store.emit("project");
 }
 
-async function loadShippedImages() {
+/** Shipped images are named in the library from the first frame and traced on
+    first use. longsleeve.png is 2.7 MB and its GLB counterpart is another
+    1.4 MB through the size calibration — a cost most sessions never spend. */
+function registerShippedImages() {
   for (const def of SHIPPED_IMAGES) {
-    try {
-      const res = await fetch(def.url);
-      if (!res.ok) continue;
-      const file = new File([await res.blob()], def.url.split("/").pop(),
-                            { type: "image/png" });
-      const mode = await imageModeFromFile(file, engine.N);
-      mode.key = `asset:${def.key}`;
-      mode.label = def.key;
-      const entry = { key: def.key, label: def.key, custom: "image",
-                      state: "ready", mode };
-      assetLib.set(def.key, entry);
-      for (const a of def.aliases || [])
-        if (!assetLib.has(a)) assetLib.set(a, { ...entry, key: a, hidden: true });
-      if (def.match) matchImageToAsset(mode, def.match).catch(console.error);
-      libChanged();
-      store.emit("project");     // clips waiting on it re-evaluate
-    } catch (err) {
-      console.error("shipped image", def.key, err);
+    if (assetLib.has(def.key)) continue;
+    const entry = { key: def.key, label: def.key, custom: "image",
+                    state: "idle", mode: null, shipped: def };
+    assetLib.set(def.key, entry);
+    for (const a of def.aliases || []) {
+      if (!assetLib.has(a)) assetLib.set(a, { ...entry, key: a, hidden: true });
     }
   }
+  libChanged();
+}
+
+async function loadShippedImage(entry) {
+  const def = entry.shipped;
+  entry.state = "loading";
+  libChanged();
+  try {
+    const res = await fetch(def.url);
+    if (!res.ok) throw new Error(`${res.status}`);
+    const file = new File([await res.blob()], def.url.split("/").pop(),
+                          { type: "image/png" });
+    const mode = await imageModeFromFile(file, engine.N);
+    mode.key = `asset:${def.key}`;
+    mode.label = def.key;
+    entry.mode = mode;
+    entry.state = "ready";
+    // every alias points at the same traced mode
+    for (const a of def.aliases || []) {
+      const al = assetLib.get(a);
+      if (al) { al.mode = mode; al.state = "ready"; }
+    }
+    if (def.match) matchImageToAsset(mode, def.match).catch(console.error);
+  } catch (err) {
+    console.error("shipped image", def.key, err);
+    entry.state = "error";
+    toast(`Could not open ${def.key} — ${err.message || err}`, { kind: "error" });
+  }
+  libChanged();
+  store.emit("project");     // clips waiting on it re-evaluate
 }
 
 async function registerGlb(buffer, filename) {
@@ -594,7 +617,7 @@ const actions = {
   },
 };
 
-loadShippedImages();
+registerShippedImages();
 
 const app = {
   store,
@@ -968,12 +991,11 @@ store.on("project", () => {
 store.on("viewzoom", layoutViewport);
 window.addEventListener("resize", layoutViewport);
 
-if (params.get("preload") !== "0") {
-  (async () => {
-    for (const c of store.project.clips) if (c.kind === "asset") await ensureAsset(c.key);
-    for (const d of ASSET_DEFS) await ensureAsset(d.key);
-  })();
-}
+// Only what the open project actually uses. The rest of the catalogue loads
+// when a clip asks for it, which is what addClip already does.
+(async () => {
+  for (const c of store.project.clips) if (c.kind === "asset") await ensureAsset(c.key);
+})();
 
 layoutViewport();
 
