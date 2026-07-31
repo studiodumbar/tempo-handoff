@@ -196,3 +196,18 @@ Wrote `HANDOVER.md`. Two last things while gathering its evidence:
   button said "Export frames", the progress card said "Rendering PNG sequence".
   "Sequence" was also the name of the removed mode. All three are "frames" now,
   and the format is "PNG frames".
+
+## Loop 5 — the Scene tab, 2026-07-31
+
+Motion's Scene tab named its sections after the engine — *Composition*,
+*Glyphs*, *Render* — while Visual named the same concepts after the job. One
+name per concept has to hold across surfaces, not just within one.
+
+- **Composition → Canvas**, matching Visual.
+- **Glyphs + Render → Look**, matching Visual. They were two sections of one
+  idea (how the marks look) split along an engine boundary nobody outside the
+  code has a reason to know about.
+- **Phosphor and persist moved to Terminal feel**, where CRT trails belong,
+  out of the glyph rasteriser's list.
+
+Five sections became four, and all 22 scene parameters are still there.

@@ -537,7 +537,7 @@ export function buildInspector(app) {
     );
 
     return [
-      section("Composition", [
+      section("Canvas", [
         grid2(
           num(() => comp().width, (v, live) => mut((p) => { p.comp.width = Math.round(v); }, "cw", live),
             { min: 128, max: 4096, step: 2, prefix: { text: "W", tip: "Width" } }),
@@ -554,7 +554,7 @@ export function buildInspector(app) {
           col(() => comp().bg, (v, live) => mut((p) => { p.comp.bg = v; }, "bg", live), "Background"),
           col(() => comp().ink, (v, live) => mut((p) => { p.comp.ink = v; }, "ink", live), "Ink"),
         ),
-      ], { id: "sc-comp" }),
+      ], { id: "sc-canvas" }),
 
       section("Camera", [
         grid2(
@@ -577,13 +577,46 @@ export function buildInspector(app) {
           })),
       ], { id: "sc-camera" }),
 
+      section("Look", [
+        row("Glyph pass", SW("terminal"), { tipText: "The braille and block rasteriser" }),
+        grid2(
+          S("cellW", { min: 6, max: 40, step: 1, prefix: { text: "W", tip: "Cell width" } }),
+          S("cellH", { min: 8, max: 64, step: 1, prefix: { text: "H", tip: "Cell height" } }),
+        ),
+        grid2(
+          S("dotR", { min: 0.4, max: 1.6, step: 0.02, prefix: { text: "dot", tip: "Braille dot size" } }),
+          S("dotThresh", { min: 0.01, max: 0.35, step: 0.005, prefix: { text: "thresh", tip: "Light a sub-pixel needs before it prints" } }),
+        ),
+        grid2(
+          S("gain", { min: 0.3, max: 3, step: 0.05, prefix: { text: "exposure", tip: "Overall brightness" } }),
+          S("baseSize", { min: 0.006, max: 0.06, step: 0.001, prefix: { text: "mark", tip: "Size of each underlying mark" } }),
+        ),
+        row("Blocks", SW("blocks"), { tipText: "Bright cells solidify into block glyphs" }),
+        grid2(
+          S("blockLo", { min: 0.15, max: 6, step: 0.05, prefix: { text: "block lo", tip: "Energy where a cell starts to solidify" } }),
+          S("blockHi", { min: 0.4, max: 6.5, step: 0.05, prefix: { text: "block hi", tip: "Energy that prints a full solid block" } }),
+        ),
+        grid2(
+          S("gapX", { min: 0, max: 0.25, step: 0.005, prefix: { text: "seam x", tip: "Gap between columns" } }),
+          S("gapY", { min: 0, max: 0.25, step: 0.005, prefix: { text: "seam y", tip: "Gap between rows" } }),
+        ),
+        grid2(
+          S("dither", { min: 0, max: 1.5, step: 0.01, prefix: { text: "dither", tip: "Tone carried as dot density" } }),
+          S("shade", { min: 0, max: 1, step: 0.01, prefix: { text: "shade", tip: "How much luma tints the ink" } }),
+        ),
+        grid2(
+          S("solidity", { min: 0, max: 1, step: 0.01, prefix: { text: "solid", tip: "How much a model hides its own far side" } }),
+          S("occBias", { min: 0.01, max: 0.3, step: 0.005, prefix: { text: "bias", tip: "Slack before a mark counts as hidden" } }),
+        ),
+      ], { id: "sc-look", collapsed: true }),
+
       section("Terminal feel", [
         row("Step rate", sel(
           () => scn().stepFps || 0,
           (v) => mut((p) => { p.scene.stepFps = v; }),
           [{ value: 0, label: "continuous" },
             ...[8, 10, 12, 15, 20, 24].map((f) => ({ value: f, label: `${f} fps` }))],
-        ), { tipText: "The scene only reprints at this rate — like a script looping over sleep()" }),
+        ), { tipText: "The scene only reprints at this rate, like a script looping over sleep()" }),
         row("Grid lock", SW("gridLock"), { tipText: "Dots snap to character cells, so travel staggers instead of gliding" }),
         row("Ink levels", sel(
           () => scn().inkLevels || 0,
@@ -591,52 +624,12 @@ export function buildInspector(app) {
           [{ value: 0, label: "smooth" },
             ...[2, 3, 4, 6].map((n) => ({ value: n, label: `${n} steps` }))],
         ), { tipText: "Quantize brightness like ANSI dim / normal / bright" }),
-        grid2(
-          S("flicker", { min: 0, max: 1, step: 0.01, prefix: { text: "flicker", tip: "Cells occasionally print dim or drop a frame" } }),
-          null,
-        ),
-      ], { id: "sc-term", collapsed: true }),
-
-      section("Glyphs", [
-        row("Glyph pass", SW("terminal"), { tipText: "Braille / block terminal rasteriser" }),
-        grid2(
-          S("cellW", { min: 6, max: 40, step: 1, prefix: { text: "W", tip: "Cell width, px" } }),
-          S("cellH", { min: 8, max: 64, step: 1, prefix: { text: "H", tip: "Cell height, px" } }),
-        ),
-        grid2(
-          S("gapX", { min: 0, max: 0.25, step: 0.005, prefix: { text: "gap x", tip: "Glyph seam between columns — blocks & dots inset like real terminal characters" } }),
-          S("gapY", { min: 0, max: 0.25, step: 0.005, prefix: { text: "gap y", tip: "Glyph seam between rows" } }),
-        ),
-        grid2(
-          S("dotR", { min: 0.4, max: 1.6, step: 0.02, prefix: { text: "dot", tip: "Braille dot size" } }),
-          S("dotThresh", { min: 0.01, max: 0.35, step: 0.005, prefix: { text: "thresh", tip: "Luminance a sub-pixel needs to print" } }),
-        ),
-        grid2(
-          S("dither", { min: 0, max: 1.5, step: 0.01, prefix: { text: "dither", tip: "Tone carried as dot density" } }),
-          S("shade", { min: 0, max: 1, step: 0.01, prefix: { text: "shade", tip: "How much luma tints the ink" } }),
-        ),
-        row("Blocks", SW("blocks"), { tipText: "Bright cells solidify to ▁▂▃ block glyphs" }),
-        grid2(
-          S("blockLo", { min: 0.15, max: 6, step: 0.05, prefix: { text: "lo", tip: "Mark energy where block chunks begin" } }),
-          S("blockHi", { min: 0.4, max: 6.5, step: 0.05, prefix: { text: "hi", tip: "Cell energy that prints fully solid" } }),
-        ),
         row("Phosphor", SW("phosphor"), { tipText: "Motion leaves fading CRT trails" }),
         grid2(
           S("persist", { min: 0.05, max: 1.5, step: 0.05, unit: "s", prefix: { text: "persist", tip: "Trail time constant" } }),
-          null,
+          S("flicker", { min: 0, max: 1, step: 0.01, prefix: { text: "flicker", tip: "Cells occasionally print dim or drop a frame" } }),
         ),
-      ], { id: "sc-glyphs", collapsed: true }),
-
-      section("Render", [
-        grid2(
-          S("gain", { min: 0.3, max: 3, step: 0.05, prefix: { text: "exp", tip: "Exposure" } }),
-          S("baseSize", { min: 0.006, max: 0.06, step: 0.001, prefix: { text: "mark", tip: "Mark size" } }),
-        ),
-        grid2(
-          S("solidity", { min: 0, max: 1, step: 0.01, prefix: { text: "solid", tip: "Assets occlude their own far side" } }),
-          S("occBias", { min: 0.01, max: 0.3, step: 0.005, prefix: { text: "bias", tip: "Occlusion slack" } }),
-        ),
-      ], { id: "sc-render", collapsed: true }),
+      ], { id: "sc-feel", collapsed: true }),
     ];
   }
 
