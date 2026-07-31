@@ -67,6 +67,30 @@ export const PAGES = [
     },
   },
   {
+    // a short PNG range so the card is caught mid-render rather than after it
+    name: "motion-exporting", url: "/editor.html",
+    setup: async (p) => {
+      await p.evaluate(() => {
+        // headless has no folder picker UI, so showDirectoryPicker never
+        // settles — take the zip path the same way a browser without the API
+        // would
+        delete window.showDirectoryPicker;
+        const { store } = window.__app;
+        store.mutate((proj) => {
+          proj.export.format = "png";
+          proj.export.start = 0;
+          proj.export.end = 0;      // whole sequence
+          proj.export.fps = 30;
+          proj.export.scale = 2;    // long enough to catch mid-render
+        });
+        document.querySelector('[role=tab][data-tab="export"]').click();
+      });
+      await p.waitForTimeout(400);
+      await p.click(".insp-foot .btn.primary");
+      await p.waitForTimeout(2500);
+    },
+  },
+  {
     name: "shortcuts", url: "/editor.html",
     setup: async (p) => {
       await p.click(".appnav .icon-btn");

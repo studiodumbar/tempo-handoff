@@ -688,7 +688,7 @@ export function buildInspector(app) {
         row("Format", sel(
           () => ex().format,
           (v) => mut((p) => { p.export.format = v; }),
-          [{ value: "mp4", label: "MP4 video" }, { value: "png", label: "PNG sequence" }],
+          [{ value: "mp4", label: "MP4 video" }, { value: "png", label: "PNG frames" }],
         )),
         row("Frame rate", sel(
           () => ex().fps,

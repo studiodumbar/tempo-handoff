@@ -183,3 +183,16 @@ Also this loop:
 - The driver now drags a clip's tail to lengthen its hold and drags a row in
   the clip list to reorder — the two direct-manipulation gestures nothing
   covered. 44 checks.
+
+## Handover — 2026-07-31
+
+Wrote `HANDOVER.md`. Two last things while gathering its evidence:
+
+- **The export progress card had never been screenshotted.** Captured it as a
+  `shoot.mjs` state — headless has no folder-picker UI, so the setup deletes
+  `showDirectoryPicker` to take the zip path a browser without the API would,
+  and renders a long enough range to catch the card mid-render.
+- **Three names for one output.** The format select said "PNG sequence", the
+  button said "Export frames", the progress card said "Rendering PNG sequence".
+  "Sequence" was also the name of the removed mode. All three are "frames" now,
+  and the format is "PNG frames".

@@ -182,7 +182,7 @@ export async function runExport(store, hooks) {
   if (mp4) {
     codec = await pickH264Codec(W, H, fps, bitrate);
     if (!codec) {
-      toast("MP4 export needs WebCodecs H.264 (Chrome / Edge). Try a PNG sequence.", { kind: "error", duration: 4200 });
+      toast("MP4 needs WebCodecs H.264 — try Chrome, or export PNG frames", { kind: "error", duration: 4200 });
       return;
     }
   }
@@ -205,7 +205,7 @@ export async function runExport(store, hooks) {
   }
 
   store.set({ exporting: true, playing: false }, "play");
-  const card = progressCard(mp4 ? "Rendering MP4" : "Rendering PNG sequence");
+  const card = progressCard(mp4 ? "Rendering MP4" : "Rendering frames");
   let cancelled = false;
   card.onCancel(() => { cancelled = true; });
 
@@ -288,7 +288,7 @@ export async function runExport(store, hooks) {
         card.retitle("Zipping…");
         await nextTick();
         const blob = zipStore(zipFiles);
-        const ok = await saveBlob(blob, `${base}_png_${W}x${H}.zip`, "PNG sequence (zip)", "application/zip");
+        const ok = await saveBlob(blob, `${base}_png_${W}x${H}.zip`, "PNG frames (zip)", "application/zip");
         if (ok) toast(`Exported ${frames} PNG frames · ${(blob.size / 1e6).toFixed(1)} MB`, { duration: 3600 });
       } else {
         toast(`Exported ${frames} PNG frames`, { duration: 3600 });
