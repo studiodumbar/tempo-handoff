@@ -628,6 +628,15 @@ const actions = {
 
   importGlb() { fileInput.click(); },
 
+  /** Clear a failed asset's state so ensureAsset will have another go. */
+  retryAsset(key) {
+    const entry = assetLib.get(key);
+    if (!entry || entry.state !== "error") return;
+    entry.state = "idle";
+    libChanged();
+    ensureAsset(key);
+  },
+
   /** Send the user to the library — opening the drawer first if the window is
       narrow enough that it is closed, so "Add a clip" always lands somewhere
       visible. */

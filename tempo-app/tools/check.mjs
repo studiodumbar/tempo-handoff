@@ -219,16 +219,21 @@ const CLASS_SITES = [
   /closest\("\.([\w-]+)"/g,
   /\bcls:\s*"([^"]*)"/g,          // iconButton(name, { cls: "play-btn" })
   /\bicon\([^,)]+,\s*"([^"]*)"/g,   // icon(name, "spin lib-busy") — name may be a variable
+  // a class chosen by a ternary: class: failed ? "lib-row failed" : "lib-row"
+  /class:\s*[^,\n]*?\?\s*"([^"]*)"\s*:\s*"([^"]*)"/g,
 ];
 const usedClasses = new Set();
 for (const [f, src] of sources) {
   for (const re of CLASS_SITES) {
     for (const m of src.matchAll(re)) {
       const line = src.slice(0, m.index).split("\n").length;
-      for (const c of m[1].trim().split(/\s+/)) {
-        if (!c || c.includes("${")) continue;
-        usedClasses.add(c);
-        if (!cssClasses.has(c)) fail(rel(f), line, `class "${c}" has no CSS rule`);
+      // a ternary yields two alternatives; both are real
+      for (const group of m.slice(1)) {
+        for (const c of (group || "").trim().split(/\s+/)) {
+          if (!c || c.includes("${")) continue;
+          usedClasses.add(c);
+          if (!cssClasses.has(c)) fail(rel(f), line, `class "${c}" has no CSS rule`);
+        }
       }
     }
   }

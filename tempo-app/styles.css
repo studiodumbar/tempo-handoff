@@ -1087,7 +1087,24 @@ button:disabled .icon { opacity: 0.5; }
 }
 /* the clip list never takes more than its share of the column */
 .seq-list.lib-scroll { max-height: 30vh; }
+.lib-group {
+  padding: var(--sp-4) var(--gutter) var(--sp-1);
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 1;
+}
+.lib-group:first-child { padding-top: var(--sp-1); }
 .lib-none { padding: var(--sp-4) var(--gutter); color: var(--text-faint); }
+
+.lib-row.failed { color: var(--text-faint); }
+.lib-row.failed .lib-icon { color: var(--danger); }
+.lib-row.failed .lib-sub { color: var(--danger); }
 
 .lib-import {
   display: flex;

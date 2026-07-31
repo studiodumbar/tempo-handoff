@@ -234,3 +234,23 @@ one that mattered.
 
 Also: a skip link now reveals on `:focus`, not `:focus-visible`. It exists
 precisely for the case where focus arrives without a pointer.
+
+## Loop 7 — 87 names become nine families, 2026-07-31
+
+The handover named this as the next thing and it turned out to be data, not
+guesswork. 75 of the 87 animation labels share a first word with at least two
+others — zoom 25, star 24, helix 6, cube 5, and five families of three — and
+ten end in " blocks", which is a variant tag rather than part of the name.
+`modeFamilies()` derives both from the labels; nothing is invented.
+
+The library shows `ZOOM` and then `zoom / out / quarter / spin / lean / plane`:
+the family says the shared part once, the row says what is different. The
+Visual picker groups the same way. Filtering falls back to full labels, because
+"out" on its own means nothing in a list of matches from five families.
+
+**A failed asset looked exactly like a working one** — same row, same icon,
+and clicking it silently did nothing. `.state.error` was styled in the design
+system phase and never reached, the same shape of bug as the skip link. Failed
+rows now carry an alert icon, read "failed", and clicking retries. A test
+serves 404s, asserts the row says so, then lets the network through and checks
+the click recovers it.

@@ -13,7 +13,7 @@ import { OrbitControls } from "../vendor/OrbitControls.js";
 import { ParticleEngine } from "./particles.js";
 import { TerminalPass } from "./terminal.js";
 import { OcclusionPass } from "./occlusion.js";
-import { MODES, paramValues } from "./modes.js";
+import { MODES, modeFamilies, paramValues } from "./modes.js";
 import { ASSET_DEFS, loadAssetMode, assetModeFromBuffer } from "./assets.js";
 import { imageModeFromFile } from "./vectorImport.js";
 import { PhotoOverlay } from "./photo.js";
@@ -573,20 +573,33 @@ function openSourceMenu(anchor) {
   for (const k of KINDS) {
     const group = entries.filter((e) => e.kind === k.id);
     if (!group.length) continue;
-    items.push({ heading: k.heading });
-    for (const e of group) {
-      items.push({
-        label: e.label,
-        checked: e.value === config.target,
-        action: () => { setTarget(e.value); buildPanel(); },
-      });
+    if (k.id === "anim") {
+      // the animations carry families in their own names — 25 zooms, 24 stars
+      // — so the picker shows them as families rather than as 87 near-identical
+      // rows
+      for (const fam of modeFamilies()) {
+        items.push({ heading: `Animations · ${fam.name}` });
+        for (const m of fam.modes) items.push(sourceItem(`mode:${m.key}`, m.label, m.tag));
+      }
+      continue;
     }
+    items.push({ heading: k.heading });
+    for (const e of group) items.push(sourceItem(e.value, e.label));
   }
   showMenu(items, anchor, {
     search: true,
     placeholder: "Find a source",
     minWidth: Math.max(220, anchor.getBoundingClientRect().width),
   });
+}
+
+function sourceItem(value, label, sub) {
+  return {
+    label,
+    sub,
+    checked: value === config.target,
+    action: () => { setTarget(value); buildPanel(); },
+  };
 }
 
 /** The current source, as a button that opens the picker. */

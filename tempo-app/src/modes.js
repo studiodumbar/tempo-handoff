@@ -2561,6 +2561,44 @@ function seamStag(p, k, n) {
 
 export const MODE_BY_KEY = Object.fromEntries(MODES.map((m) => [m.key, m]));
 
+/* The 87 labels are not arbitrary — 75 of them share a first word with at
+   least two others (zoom 25, star 24, helix 6, cube 5, and five families of
+   three). Presented flat that reads as 87 near-identical names; grouped by
+   the family already in the naming it reads as nine things with variants.
+   Ten labels also end in " blocks", which is a variant tag, not part of the
+   name. Both facts come out of the data — nothing is invented here. */
+const FAMILY_MIN = 3;
+
+export function modeFamilies() {
+  const counts = new Map();
+  for (const m of MODES) {
+    const w = m.label.split(" ")[0];
+    counts.set(w, (counts.get(w) || 0) + 1);
+  }
+  const groups = new Map();
+  const rest = [];
+  for (const m of MODES) {
+    const w = m.label.split(" ")[0];
+    const entry = { ...m, ...variantOf(m.label) };
+    if ((counts.get(w) || 0) >= FAMILY_MIN) {
+      if (!groups.has(w)) groups.set(w, []);
+      groups.get(w).push(entry);
+    } else {
+      rest.push(entry);
+    }
+  }
+  const out = [...groups.entries()].map(([name, modes]) => ({ name, modes }));
+  out.sort((a, b) => b.modes.length - a.modes.length);
+  if (rest.length) out.push({ name: "other", modes: rest });
+  return out;
+}
+
+/** "zoom out blocks" -> { short: "zoom out", tag: "blocks" }. */
+function variantOf(label) {
+  const m = /^(.*) blocks$/.exec(label);
+  return m ? { short: m[1], tag: "blocks" } : { short: label, tag: null };
+}
+
 /** Current tweak values for a mode (mutated live by the panel). */
 export function paramValues(mode) {
   if (!mode._values) {

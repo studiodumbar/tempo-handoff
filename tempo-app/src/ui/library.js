@@ -5,7 +5,7 @@
 
 import { h, icon, tip, showMenu, toast } from "./dom.js";
 import { TextField, iconButton } from "./fields.js";
-import { MODES } from "../modes.js";
+import { MODES, modeFamilies } from "../modes.js";
 import { segments, clipDuration, fmtSeconds } from "../sequence.js";
 
 /** What the row IS, at a glance: a procedural animation, a traced image, or a
@@ -166,17 +166,26 @@ export function buildLibraryPanel(app) {
   }
 
   function libRow({ kind, key, label, sub, state, custom }) {
-    const rowEl = h("div", { class: "lib-row", dataset: { kind, key } },
-      h("span", { class: "lib-icon" }, icon(kindIcon(kind, custom))),
+    // A failed asset used to look exactly like a working one — same row, same
+    // icon, and clicking it silently did nothing. It says so now, and the
+    // click retries rather than pretending.
+    const failed = state === "error";
+    const rowEl = h("div", {
+      class: failed ? "lib-row failed" : "lib-row",
+      dataset: { kind, key },
+    },
+      h("span", { class: "lib-icon" }, icon(failed ? "alert" : kindIcon(kind, custom))),
       h("span", { class: "lib-name" }, label),
-      sub ? h("span", { class: "lib-sub" }, sub) : null,
+      failed ? h("span", { class: "lib-sub" }, "failed") : (sub ? h("span", { class: "lib-sub" }, sub) : null),
       state === "loading" ? icon("spinner", "spin lib-busy") : null,
-      h("span", { class: "lib-add" }, icon("plus")),
+      h("span", { class: "lib-add" }, icon(failed ? "loop" : "plus")),
     );
-    tip(rowEl, "Click to add · drag onto the timeline");
+    tip(rowEl, failed ? "Could not load — click to try again"
+      : "Click to add · drag onto the timeline");
     let dragged = false;
     rowEl.addEventListener("click", () => {
       if (dragged) { dragged = false; return; }   // the drag already placed it
+      if (failed) { app.actions.retryAsset(key); return; }
       app.actions.addClip(kind, key);
     });
     rowEl.addEventListener("pointerdown", (e) => {
@@ -254,16 +263,37 @@ export function buildLibraryPanel(app) {
 
   const animList = h("div", { class: "lib-list lib-scroll" });
   const animCount = h("span", { class: "lib-count" });
+  const FAMILIES = modeFamilies();
+
   function renderAnims() {
     animList.textContent = "";
-    const shown = MODES.filter((m) => hit(m.label));
-    animCount.textContent = query ? `${shown.length}/${MODES.length}` : String(MODES.length);
-    for (const m of shown) {
-      animList.append(libRow({ kind: "mode", key: m.key, label: m.label }));
+    let shown = 0;
+    for (const fam of FAMILIES) {
+      const modes = fam.modes.filter((m) => hit(m.label));
+      if (!modes.length) continue;
+      shown += modes.length;
+      // a family heading is only worth its row when it names more than one
+      // visible thing — filtering down to one leaves the name on the row
+      if (modes.length > 1 || !query) {
+        animList.append(h("div", { class: "lib-group" }, fam.name));
+      }
+      for (const m of modes) {
+        animList.append(libRow({
+          kind: "mode", key: m.key,
+          // inside "zoom", every row starts with "zoom" — the family already
+          // said it, so the row says what is different
+          label: query ? m.label : (m.short === fam.name ? m.label : trimFamily(m.short, fam.name)),
+          sub: m.tag,
+        }));
+      }
     }
-    if (!shown.length && query) {
-      animList.append(h("div", { class: "lib-none" }, "No match"));
-    }
+    animCount.textContent = query ? `${shown}/${MODES.length}` : String(MODES.length);
+    if (!shown) animList.append(h("div", { class: "lib-none" }, "No match"));
+  }
+
+  /** "zoom out" inside the zoom family is just "out". */
+  function trimFamily(label, family) {
+    return label.startsWith(`${family} `) ? label.slice(family.length + 1) : label;
   }
 
   const assetList = h("div", { class: "lib-list lib-scroll" });

@@ -373,7 +373,12 @@ if (run("visual")) {
     await page.waitForTimeout(250);
     const headings = await page.evaluate(() =>
       [...document.querySelectorAll(".menu-heading")].map((e) => e.textContent));
-    eq(headings.join(", "), "Images, 3D models, Animations");
+    eq(headings.slice(0, 2).join(", "), "Images, 3D models");
+    // the animations are grouped by the families in their own names
+    const fams = headings.filter((h2) => h2.startsWith("Animations · "));
+    ok(fams.length >= 5, `only ${fams.length} animation families`);
+    ok(fams.includes("Animations · zoom") && fams.includes("Animations · star"),
+      `families were ${fams.join(", ")}`);
     const all = await page.evaluate(() =>
       [...document.querySelectorAll(".menu-item")].filter((e) => !e.hidden).length);
     ok(all > 50, `picker showed only ${all} sources`);
@@ -742,6 +747,33 @@ if (run("deployed")) {
 
   await t("no unhandled error escapes the failed load", async () => {
     eq(errors.join(" | "), "");
+  });
+
+  await t("a failed asset says so, and clicking it retries", async () => {
+    const m = await ctx.newPage();
+    let blocked = true;
+    await m.route("**/models/**", (r) =>
+      (blocked ? r.fulfill({ status: 404, body: "" }) : r.continue()));
+    await m.goto(`${BASE}/editor.html`, { waitUntil: "load" });
+    await m.waitForTimeout(2500);
+
+    const failedRow = await m.evaluate(() => {
+      const row = document.querySelector(".lib-row.failed");
+      return row ? row.textContent.trim() : null;
+    });
+    ok(failedRow, "a failed asset looked identical to a working one");
+    ok(/failed/.test(failedRow), `the row says "${failedRow}"`);
+
+    // let the network through and click the row: it should try again
+    blocked = false;
+    await m.click(".lib-row.failed");
+    await m.waitForTimeout(2500);
+    const stillFailed = await m.evaluate(() =>
+      window.__app.library.assets().filter((a) => a.state === "error").length);
+    const ready = await m.evaluate(() =>
+      window.__app.library.assets().filter((a) => a.state === "ready").length);
+    ok(ready > 0, `retry recovered nothing (${stillFailed} still failed)`);
+    await m.close();
   });
 
   await t("Motion survives a project whose assets 404", async () => {
