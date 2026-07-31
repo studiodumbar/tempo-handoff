@@ -254,3 +254,16 @@ system phase and never reached, the same shape of bug as the skip link. Failed
 rows now carry an alert icon, read "failed", and clicking retries. A test
 serves 404s, asserts the row says so, then lets the network through and checks
 the click recovers it.
+
+## Final state — 2026-07-31
+
+`npm run gate` clean: 23 modules and 2 stylesheets check, 84 browser tests, 44
+drive checks against real exported files. Screenshots for every surface and
+state in `shots/final/`. `HANDOVER.md` is current.
+
+| | Visual | Motion |
+| --- | --- | --- |
+| Transfer | 26 367 → **2 101 kB** | 26 360 → **3 270 kB** |
+| Long tasks | 5 (max 188 ms) → **1** | 5 (max 218 ms) → **2** |
+| Retained heap | 141.1 → **17.4 MB** | 132.6 → **57.5 MB** |
+| Sustained fps | 120.1 → 120.1 | 120.1 → 120.2 |
