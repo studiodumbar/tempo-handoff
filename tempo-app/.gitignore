@@ -3,3 +3,5 @@ node_modules
 shots
 out
 .agents
+.claude
+skills-lock.json

@@ -231,6 +231,9 @@ opinion:
   whatever workflow added it.
 - **No build step introduced.** Adding a bundler would be a much larger and
   riskier change than the brief asks for, and the app is fast without one.
+- **`presets/*.hatchfusion.json`** — your two saved projects. New saves write
+  `.tempo.json`, but the opener only cares that the JSON parses with
+  `version: 1` and a clips array, so both still load. Verified, not assumed.
 - **`.vercelignore` untouched** — the brief forbids deploy-config changes. The
   consequence (models 404 in production) is now tested and handled honestly.
 
