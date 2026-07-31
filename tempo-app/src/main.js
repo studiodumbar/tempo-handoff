@@ -10,7 +10,7 @@ import { OrbitControls } from "../vendor/OrbitControls.js";
 import { ParticleEngine, mosaicTileKeys } from "./particles.js";
 import { TerminalPass } from "./terminal.js";
 import { OcclusionPass } from "./occlusion.js";
-import { MODE_BY_KEY, paramValues } from "./modes.js";
+import { MODE_BY_KEY, featuredModes, paramValues } from "./modes.js";
 import { ASSET_DEFS, loadAssetMode, assetModeFromBuffer } from "./assets.js";
 import { imageModeFromFile } from "./vectorImport.js";
 import { PhotoOverlay } from "./photo.js";
@@ -1051,21 +1051,16 @@ const exportHooks = {
 function starterProject() {
   const p = defaultProject();
   p.name = "Untitled";
-  const add = (key, label, hold, dur) => {
-    const c = makeClip("mode", key, label);
-    c.hold = hold;
-    c.trans.duration = dur;
+  /* The featured set, in its own order — derived from FEATURED rather than
+     listed again here, so changing what is pinned changes what a new project
+     opens on and the two cannot drift apart. The first clip has no flight in;
+     there is nothing before it to fly from. */
+  featuredModes().forEach((m, i) => {
+    const c = makeClip("mode", m.key, m.label);
+    c.hold = 2.4;
+    c.trans.duration = i === 0 ? 0 : 0.9;
     p.clips.push(c);
-    return c;
-  };
-  /* It used to open on sphere, globe, mug, hoodie — and the last two are GLB
-     assets that no longer ship, so every boot greeted you with "Missing
-     imports". It walks the featured set now: the signature body, then two of
-     the pinned animations. */
-  add("sphere", "sphere", 2.4, 0);
-  add("globe", "globe", 3.4, 0.9);
-  add("star-emit", "star emit", 3.0, 0.9);
-  add("helix-train", "helix train", 3.0, 0.9);
+  });
   return p;
 }
 

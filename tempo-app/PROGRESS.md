@@ -341,3 +341,11 @@ Verified live on the deployment: Visual falls back with "mug is not available
 here — opened the plate instead", and Motion's library shows hoodie and mug in
 red marked "failed" with retry — the models are `.vercelignore`d, so that is
 the production reality working as designed.
+
+## Default timeline — 2026-07-31
+
+A new project opens on the featured set, derived from `FEATURED` rather than
+listed again in `starterProject()`, so changing what is pinned changes what a
+new project opens on and the two cannot drift. 2.4s hold each, 0.9s flights,
+no flight into the first clip — there is nothing before it to fly from.
+18.90s total. A test asserts the starter's clip keys equal the featured rows.

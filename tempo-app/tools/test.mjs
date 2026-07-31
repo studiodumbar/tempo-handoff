@@ -121,9 +121,15 @@ if (run("system")) {
         .filter((c) => !window.__app.baseModeFor(c))
         .map((c) => `${c.kind}:${c.key}`),
       toast: [...document.querySelectorAll(".toast")].map((t2) => t2.textContent).join(" | "),
+      // it opens on the featured set, and stays derived from it
+      clips: window.__app.store.project.clips.map((c) => c.key),
+      featured: [...document.querySelectorAll(".lib-featured .lib-row")]
+        .map((r) => r.dataset.key),
     }));
     eq(state.unresolved.join(", "), "", "clips that cannot resolve:");
     ok(!/Missing/i.test(state.toast), `it greeted the user with: "${state.toast}"`);
+    eq(state.clips.join(","), state.featured.join(","),
+      "the starter timeline drifted from the featured set:");
     await c2.close();
   });
 
