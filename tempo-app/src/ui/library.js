@@ -5,7 +5,7 @@
 
 import { h, icon, tip, showMenu, toast } from "./dom.js";
 import { TextField, iconButton } from "./fields.js";
-import { MODES, modeFamilies } from "../modes.js";
+import { MODES, modeFamilies, featuredModes } from "../modes.js";
 import { segments, clipDuration, fmtSeconds } from "../sequence.js";
 
 /** What the row IS, at a glance: a procedural animation, a traced image, or a
@@ -220,6 +220,18 @@ export function buildLibraryPanel(app) {
     return rowEl;
   }
 
+  // ---- featured ----
+  // A curated set, pinned above everything else and styled as its own thing so
+  // it does not read as the first few rows of the long list. Not filtered by
+  // the search below: it is a shortlist, and hiding it while you look for
+  // something else would defeat the point of pinning it.
+  const featured = featuredModes();
+  const featuredSection = h("div", { class: "lib-section lib-featured" },
+    h("div", { class: "lib-title" }, "Featured",
+      h("span", { class: "lib-count" }, String(featured.length))),
+    h("div", { class: "lib-list" },
+      featured.map((m) => libRow({ kind: "mode", key: m.key, label: m.label }))));
+
   // ---- search ----
   // 89 animations in a 244px column is a 2 300px scroll of names like "zoom",
   // "zoom out", "zoom quarter", "zoom spin", "zoom lean". A filter is the
@@ -330,6 +342,7 @@ export function buildLibraryPanel(app) {
      scroll, 87 animation rows put it 2 000px below the fold. */
   const body = h("div", { class: "panel-body lib-body" },
     seqSection,
+    featuredSection,
     h("div", { class: "lib-section lib-grow" },
       h("div", { class: "lib-title" }, "Animations", animCount),
       searchField,

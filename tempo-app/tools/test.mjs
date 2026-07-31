@@ -111,6 +111,22 @@ if (run("system")) {
 
   await ctx.close();
 
+  await t("the starter project only names things that ship", async () => {
+    const c2 = await browser.newContext();
+    const p2 = await c2.newPage();
+    await p2.goto(`${BASE}/editor.html`, { waitUntil: "load" });
+    await p2.waitForTimeout(2500);
+    const state = await p2.evaluate(() => ({
+      unresolved: window.__app.store.project.clips
+        .filter((c) => !window.__app.baseModeFor(c))
+        .map((c) => `${c.kind}:${c.key}`),
+      toast: [...document.querySelectorAll(".toast")].map((t2) => t2.textContent).join(" | "),
+    }));
+    eq(state.unresolved.join(", "), "", "clips that cannot resolve:");
+    ok(!/Missing/i.test(state.toast), `it greeted the user with: "${state.toast}"`);
+    await c2.close();
+  });
+
   for (const [name, url] of [["Visual", "/index.html"], ["Motion", "/editor.html"]]) {
     const c2 = await browser.newContext();
     const p2 = await c2.newPage();
@@ -383,7 +399,7 @@ if (run("visual")) {
     await page.waitForTimeout(250);
     const headings = await page.evaluate(() =>
       [...document.querySelectorAll(".menu-heading")].map((e) => e.textContent));
-    eq(headings.slice(0, 2).join(", "), "Images, 3D models");
+    eq(headings.slice(0, 2).join(", "), "Featured, Images");
     // the animations are grouped by the families in their own names
     const fams = headings.filter((h2) => h2.startsWith("Animations · "));
     ok(fams.length >= 5, `only ${fams.length} animation families`);
@@ -401,19 +417,25 @@ if (run("visual")) {
     await page.waitForTimeout(200);
   });
 
-  await t("depth controls appear only for a 3D source", async () => {
+  await t("importing a GLB brings the depth controls with it", async () => {
     const hasSolid = () => page.evaluate(() =>
       [...document.querySelectorAll("#v-camera .field-prefix")]
         .some((e) => e.textContent === "solid"));
+
     await page.evaluate(() => window.__visual.setTarget("asset:plate"));
     await page.waitForTimeout(400);
     eq(await hasSolid(), false, "occlusion controls shown for an image:");
     // the camera itself stays, because any source can be orbited
     eq(await page.evaluate(() => !!document.querySelector("#v-camera")), true,
       "camera section missing for an image:");
-    await page.evaluate(() => window.__visual.setTarget("asset:mug"));
-    await page.waitForTimeout(900);
-    eq(await hasSolid(), true, "occlusion controls missing for a model:");
+
+    // no built-in models ship any more, so import one the way a user does
+    await page.setInputFiles("#file", "models/mug.glb");
+    await page.waitForTimeout(8000);
+    const src = await page.evaluate(() => document.querySelector(".source-name").textContent);
+    ok(!/Loading/.test(src), `the import never resolved — picker reads "${src}"`);
+    eq(await hasSolid(), true, `depth controls missing for the imported model (source: ${src}):`);
+
     await page.evaluate(() => window.__visual.setTarget("asset:plate"));
     await page.waitForTimeout(400);
   });
@@ -860,81 +882,75 @@ if (run("migration")) {
 }
 
 // ============================================================ deployed
-// models/ is .vercelignored, so on the deployed site every GLB 404s. That is
-// the state most people meet the app in, and nothing tested it.
+// No built-in models ship any more, and models/ was .vercelignored besides.
+// What is still reachable — and is what production actually meets — is a saved
+// project or config naming something that is no longer there.
+//
+// There is deliberately no test for the failed-asset row and its retry: with
+// ASSET_DEFS empty nothing fetches, so entry.state can never become "error".
+// The code is kept because assets.js documents putting an entry back as the way
+// to restore a model, and without it that path would fail silently again.
+// See DESIGN_DECISIONS D19.
 if (run("deployed")) {
   group = "deployed";
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
-  await page.route("**/models/**", (r) => r.fulfill({ status: 404, body: "" }));
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   await page.goto(`${BASE}/index.html`, { waitUntil: "load" });
   await page.waitForTimeout(2000);
 
-  await t("Visual still opens on its plate when no model can load", async () => {
+  await t("Visual opens on its plate and draws", async () => {
     eq(await page.evaluate(() => window.__visual.config.target), "asset:plate");
     const marks = await page.evaluate(() => (window.__visual.svg().match(/<rect|<circle/g) || []).length);
     ok(marks > 50, `the stage drew only ${marks} marks`);
   });
 
-  await t("picking an unavailable model says so and falls back", async () => {
-    await page.evaluate(() => window.__visual.setTarget("asset:mug"));
-    await page.waitForTimeout(2500);
-    const toastText = await page.evaluate(() =>
-      [...document.querySelectorAll(".toast")].map((t2) => t2.textContent).join(" | "));
-    ok(/not available|Could not/i.test(toastText), `no explanation shown — toasts: "${toastText}"`);
-    eq(await page.evaluate(() => window.__visual.config.target), "asset:plate",
-      "left staring at an empty canvas:");
+  await t("a saved target naming a gone model recovers and explains", async () => {
+    await page.evaluate(() => window.__visual.setTarget("asset:hoodie"));
+    await page.waitForTimeout(2000);
+    const state = await page.evaluate(() => ({
+      target: window.__visual.config.target,
+      toast: [...document.querySelectorAll(".toast")].map((t2) => t2.textContent).join(" | "),
+      marks: (window.__visual.svg().match(/<rect|<circle/g) || []).length,
+    }));
+    eq(state.target, "asset:plate", "left staring at an empty canvas:");
+    ok(state.toast.length > 0, "nothing explained it");
+    ok(state.marks > 50, `the stage drew only ${state.marks} marks`);
   });
 
-  await t("no unhandled error escapes the failed load", async () => {
+  await t("no unhandled error escapes", async () => {
     eq(errors.join(" | "), "");
   });
 
-  await t("a failed asset says so, and clicking it retries", async () => {
-    const m = await ctx.newPage();
-    let blocked = true;
-    await m.route("**/models/**", (r) =>
-      (blocked ? r.fulfill({ status: 404, body: "" }) : r.continue()));
-    await m.goto(`${BASE}/editor.html`, { waitUntil: "load" });
-    await m.waitForTimeout(2500);
-
-    const failedRow = await m.evaluate(() => {
-      const row = document.querySelector(".lib-row.failed");
-      return row ? row.textContent.trim() : null;
-    });
-    ok(failedRow, "a failed asset looked identical to a working one");
-    ok(/failed/.test(failedRow), `the row says "${failedRow}"`);
-
-    // let the network through and click the row: it should try again
-    blocked = false;
-    await m.click(".lib-row.failed");
-    await m.waitForTimeout(2500);
-    const stillFailed = await m.evaluate(() =>
-      window.__app.library.assets().filter((a) => a.state === "error").length);
-    const ready = await m.evaluate(() =>
-      window.__app.library.assets().filter((a) => a.state === "ready").length);
-    ok(ready > 0, `retry recovered nothing (${stillFailed} still failed)`);
-    await m.close();
-  });
-
-  await t("Motion survives a project whose assets 404", async () => {
+  await t("Motion opens a project naming assets that no longer exist", async () => {
+    // exactly the two saved presets in presets/, which reference hoodie and mug
     const m = await ctx.newPage();
     const merr = [];
     m.on("pageerror", (e) => merr.push(String(e)));
-    await m.route("**/models/**", (r) => r.fulfill({ status: 404, body: "" }));
     await m.goto(`${BASE}/editor.html`, { waitUntil: "load" });
-    await m.waitForTimeout(2500);
+    await m.waitForTimeout(1500);
+    await m.evaluate(() => {
+      const { store, normalizeProject } = window.__app;
+      store.replaceProject(normalizeProject({
+        version: 1, name: "Old project",
+        comp: { width: 1080, height: 1080, fps: 60, bg: "#000000", ink: "#ffffff" },
+        scene: {}, photos: [], camera: { follow: true, kfs: [] }, export: {},
+        clips: [
+          { id: "a", kind: "mode", key: "sphere", label: "sphere", hold: 2, trans: {}, params: {} },
+          { id: "b", kind: "asset", key: "hoodie", label: "hoodie", hold: 2, trans: {}, params: {} },
+        ],
+      }));
+    });
+    await m.waitForTimeout(1500);
     eq(merr.join(" | "), "", "page errors:");
-    const state = await m.evaluate(() =>
-      window.__app.library.assets().filter((a) => a.state === "error").length);
-    ok(state > 0, "the library did not mark any asset as failed");
-    // and the surface is still usable
+    // the clip is kept, not silently dropped — the user can re-import
+    eq(await m.evaluate(() => window.__app.store.project.clips.length), 2,
+      "a clip was dropped:");
     const before = await m.evaluate(() => window.__app.store.project.clips.length);
     await m.evaluate(() => window.__app.actions.addClip("mode", "sphere"));
     eq(await m.evaluate(() => window.__app.store.project.clips.length), before + 1,
-      "could not add a clip after a failed asset load");
+      "could not add a clip afterwards");
     await m.close();
   });
 

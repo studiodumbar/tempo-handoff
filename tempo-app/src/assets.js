@@ -23,17 +23,14 @@ import { ASSET_MODE_ID } from "./particles.js";
 
 const TAU = Math.PI * 2;
 
-export const ASSET_DEFS = [
-  { key: "tshirt", label: "t-shirt", status: "T-SHIRT", file: "./models/tshirt.glb" },
-  // static by request — it pairs with the flat photo plate, so the whole
-  // composition holds still
-  { key: "long-sleeve", label: "long sleeve", status: "LONG SLEEVE",
-    file: "./models/long-sleeve.glb",
-    tweaks: { spin: 0, tilt: 0, "stretch x": 1.2, "shift y": 0.06 } },
-  { key: "hoodie", label: "hoodie", status: "HOODIE", file: "./models/hoodie.glb" },
-  { key: "cap", label: "cap", status: "CAP", file: "./models/cap.glb" },
-  { key: "mug", label: "mug", status: "MUG", file: "./models/mug.glb" },
-];
+/* No built-in 3D models. The five GLBs were 96 MB of a 101 MB project, they
+   were .vercelignored so they 404'd in production anyway, and the curated
+   Featured set replaced them in the library. The files are still in models/ —
+   putting an entry back here is all it takes to restore one.
+
+   Imported GLBs are unaffected: they never came through here, they register
+   straight into the library from assetModeFromBuffer(). */
+export const ASSET_DEFS = [];
 
 const draco = new DRACOLoader()
   .setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.6/");

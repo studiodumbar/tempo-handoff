@@ -18,6 +18,7 @@ import { store, makeClip, defaultProject, normalizeProject, uid } from "./store.
 import { expoInOut } from "./easing.js";
 import {
   setAssetResolver, drive, segments, totalDuration, projectDuration, whipAngle, locate,
+  baseModeFor,
   invalidatePair, pruneRuntimes,
   cameraStateFrom, applyCameraState, evalCamera,
 } from "./sequence.js";
@@ -125,14 +126,11 @@ async function registerImage(file) {
   }
 }
 
-// Shipped images — plates that are part of the APP, not the session: they
-// register at boot under stable keys, so a saved project that references
-// one always reconnects. Old import-… keys ride along as hidden aliases,
-// so clips from before an image shipped find it too.
-const SHIPPED_IMAGES = [
-  { key: "longsleeve", label: "long sleeve", url: "./plates/longsleeve.png",
-    aliases: ["import-longsleeve"], match: "long-sleeve" },
-];
+/* No shipped images either — the long-sleeve plate went with the models. The
+   default plate on the Visual surface is the one built-in that remains, and it
+   lives there rather than in this library. Imports still work exactly as
+   before: they register straight into assetLib. */
+const SHIPPED_IMAGES = [];
 
 /** Await an asset entry until it is genuinely ready (ensureAsset returns
     early when another caller is already loading it). */
@@ -711,6 +709,7 @@ const app = {
   engine,
   exportKey: EXPORT_KEY,
   normalizeProject,
+  baseModeFor,
   projectDuration: () => projectDuration(store.project),
   renderAt: (T) => exportHooks.renderAt(T),   // headless-driving hook
   library: {
@@ -1052,18 +1051,21 @@ const exportHooks = {
 function starterProject() {
   const p = defaultProject();
   p.name = "Untitled";
-  const add = (kind, key, label, hold, dur) => {
-    const c = makeClip(kind, key, label);
+  const add = (key, label, hold, dur) => {
+    const c = makeClip("mode", key, label);
     c.hold = hold;
     c.trans.duration = dur;
     p.clips.push(c);
     return c;
   };
-  // walk the system: signature body, the globe, then two products
-  add("mode", "sphere", "sphere", 2.4, 0);
-  add("mode", "globe", "globe", 3.4, 0.9);
-  add("asset", "mug", "mug", 2.6, 0.9);
-  add("asset", "hoodie", "hoodie", 2.6, 0.9);
+  /* It used to open on sphere, globe, mug, hoodie — and the last two are GLB
+     assets that no longer ship, so every boot greeted you with "Missing
+     imports". It walks the featured set now: the signature body, then two of
+     the pinned animations. */
+  add("sphere", "sphere", 2.4, 0);
+  add("globe", "globe", 3.4, 0.9);
+  add("star-emit", "star emit", 3.0, 0.9);
+  add("helix-train", "helix train", 3.0, 0.9);
   return p;
 }
 

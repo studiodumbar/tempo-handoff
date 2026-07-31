@@ -13,7 +13,7 @@ import { OrbitControls } from "../vendor/OrbitControls.js";
 import { ParticleEngine } from "./particles.js";
 import { TerminalPass } from "./terminal.js";
 import { OcclusionPass } from "./occlusion.js";
-import { MODES, modeFamilies, paramValues } from "./modes.js";
+import { MODES, modeFamilies, featuredModes, paramValues } from "./modes.js";
 import { ASSET_DEFS, loadAssetMode, assetModeFromBuffer } from "./assets.js";
 import { imageModeFromFile } from "./vectorImport.js";
 import { PhotoOverlay } from "./photo.js";
@@ -191,7 +191,7 @@ async function ensureDefaultPlate() {
     mode.key = `asset:${DEFAULT_PLATE.key}`;
     mode.label = DEFAULT_PLATE.label;
     assetLib.set(DEFAULT_PLATE.key, mode);
-    imports.push({ key: DEFAULT_PLATE.key, label: mode.label });
+    imports.push({ key: DEFAULT_PLATE.key, label: mode.label, kind: "image" });
     loadedPairKey = "";
     refreshLabel();          // the stage label reads "loading…" until this lands
     buildPanel();
@@ -227,14 +227,14 @@ async function ensureAsset(key) {
 // appear in the picker from the first frame — but the pixels only arrive when
 // one is actually chosen. longsleeve.png alone is 2.7 MB; paying that at boot
 // for an image most sessions never open is the wrong trade.
-const SHIPPED_IMAGES = [
-  { key: "longsleeve", label: "long sleeve", url: "./plates/longsleeve.png" },
-];
+/* No shipped images beyond the default plate — the long-sleeve plate went with
+   the built-in models. Imports are unaffected. */
+const SHIPPED_IMAGES = [];
 
 function registerShippedImages() {
   for (const def of SHIPPED_IMAGES) {
     if (!imports.some((i) => i.key === def.key)) {
-      imports.push({ key: def.key, label: def.label ?? def.key, url: def.url });
+      imports.push({ key: def.key, label: def.label ?? def.key, url: def.url, kind: "image" });
     }
   }
 }
@@ -301,17 +301,17 @@ async function fallBackToPlate(message) {
 async function importFile(file) {
   const t = toast(`Importing ${file.name}…`, { kind: "busy", duration: 0 });
   try {
-    let mode;
-    if (/\.(glb|gltf)$/i.test(file.name)) {
-      mode = await assetModeFromBuffer(await file.arrayBuffer(), file.name, engine.N);
-    } else {
-      mode = await imageModeFromFile(file, engine.N);
-    }
+    const isGlb = /\.(glb|gltf)$/i.test(file.name);
+    const mode = isGlb
+      ? await assetModeFromBuffer(await file.arrayBuffer(), file.name, engine.N)
+      : await imageModeFromFile(file, engine.N);
     let key = (mode.key || "").replace(/^asset:/, "") || `import-${imports.length}`;
     while (assetLib.has(key)) key += "-2";
     mode.key = `asset:${key}`;
     assetLib.set(key, mode);
-    imports.push({ key, label: mode.label });
+    // remember WHICH it is: with no built-in models left, the picker can no
+    // longer infer "model" from ASSET_DEFS membership
+    imports.push({ key, label: mode.label, kind: isGlb ? "model" : "image" });
     t.dismiss();
     setTarget(`asset:${key}`);
     buildPanel();
@@ -603,7 +603,7 @@ const KINDS = [
 
 function sourceEntries() {
   return [
-    ...imports.map((i) => ({ kind: "image", value: `asset:${i.key}`, label: i.label })),
+    ...imports.map((i) => ({ kind: i.kind ?? "image", value: `asset:${i.key}`, label: i.label })),
     ...ASSET_DEFS.map((d) => ({ kind: "model", value: `asset:${d.key}`, label: d.label })),
     ...MODES.map((m) => ({ kind: "anim", value: `mode:${m.key}`, label: m.label })),
   ];
@@ -620,6 +620,9 @@ function sourceKind() {
 function openSourceMenu(anchor) {
   const entries = sourceEntries();
   const items = [];
+  // the same curated set the library pins, in the same order
+  items.push({ heading: "Featured" });
+  for (const m of featuredModes()) items.push(sourceItem(`mode:${m.key}`, m.label));
   for (const k of KINDS) {
     const group = entries.filter((e) => e.kind === k.id);
     if (!group.length) continue;

@@ -2561,6 +2561,19 @@ function seamStag(p, k, n) {
 
 export const MODE_BY_KEY = Object.fromEntries(MODES.map((m) => [m.key, m]));
 
+/* A curated set, pinned above the full list. These are animations, not GLBs —
+   the built-in 3D models are gone — so the section is called Featured rather
+   than Assets, which would name them as something they are not. */
+export const FEATURED = [
+  "star-emit", "helix-train", "zoom-out-blocks", "compare-relay",
+  "find-orbits", "arrange-crystal", "sonar",
+];
+
+/** The featured modes, in the order they are listed above. */
+export function featuredModes() {
+  return FEATURED.map((k) => MODE_BY_KEY[k]).filter(Boolean);
+}
+
 /* The 87 labels are not arbitrary — 75 of them share a first word with at
    least two others (zoom 25, star 24, helix 6, cube 5, and five families of
    three). Presented flat that reads as 87 near-identical names; grouped by

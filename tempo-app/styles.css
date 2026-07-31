@@ -1066,6 +1066,17 @@ button:disabled .icon { opacity: 0.5; }
   .lib-row:hover .lib-add { opacity: 1; transform: none; }
 }
 
+/* The featured set reads as its own thing, not as the first rows of the long
+   list below it: a slightly brighter surface, a heavier rule under it, and rows
+   in full-strength text rather than the list's quieter grey. */
+.lib-featured {
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom-width: 2px;
+}
+.lib-featured .lib-title { color: var(--text); }
+.lib-featured .lib-row { color: var(--text); }
+.lib-featured .lib-icon { color: var(--text-dim); }
+
 .lib-search { margin-top: 0; }
 
 /* The library is a column of three sections that each own their own scroll,
