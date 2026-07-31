@@ -1,0 +1,1125 @@
+:root {
+  --bg: #1b1b1b;
+  --fg: #ffffff;
+  --fg-dim: rgba(255, 255, 255, 0.5);
+  --hair: rgba(255, 255, 255, 0.1);
+  --accent: #98f3aa;
+  --accent-cart: #a5fd9a;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --pad-x: 32px;
+  --pad-y: 24px;
+  --rail: 424px;
+}
+
+* { box-sizing: border-box; }
+
+/* attribute must win over component display rules */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 16px;
+  font-feature-settings: "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  font-feature-settings: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── shared panel chrome ─────────────────────────────────────── */
+.panel-head,
+.panel-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--pad-y) var(--pad-x);
+  flex-shrink: 0;
+}
+
+.panel-head { border-bottom: 1px solid var(--hair); }
+.panel-foot {
+  border-top: 1px solid var(--hair);
+  justify-content: space-between;
+  padding-block: 26px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  background: var(--fg);
+  flex-shrink: 0;
+}
+
+.label {
+  text-transform: uppercase;
+  line-height: 1.64;
+}
+
+.muted { color: var(--fg-dim); }
+.accent { color: var(--accent); }
+
+/* ── terminal rail ───────────────────────────────────────────── */
+.terminal {
+  width: var(--rail);
+  flex-shrink: 0;
+  transition: width var(--t-rail) var(--expo);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--hair);
+}
+
+.terminal-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: var(--pad-y) var(--pad-x);
+  overflow: hidden;
+}
+
+/* history takes whatever room is left, below the line, and scrolls inside it */
+.scrollback {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hair) transparent;
+}
+
+/* the line is docked: completions stack above it, so it never moves */
+.prompt-block {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* history grows upward from the docked line, so a short session sits together
+   just above it rather than stranding the banner at the top.
+   (margin-top:auto, not justify-content:flex-end — the latter makes overflowing
+   content unreachable at the top of a scroll container.) */
+.boot p { margin: 0; white-space: nowrap; }
+.boot p + p { margin-top: 16px; }
+
+/* ── terminal ───────────────────────────────────────────────────
+   transcript on top, live line, completions beneath it */
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.transcript:empty { display: none; }
+
+.entry { display: flex; flex-direction: column; gap: 4px; }
+.entry-cmd { color: var(--accent); }
+.entry-out { display: flex; flex-direction: column; gap: 4px; color: var(--fg-dim); }
+
+/* command output pads its own columns — keep the runs of spaces */
+.entry-out .ink { white-space: pre-wrap; }
+.entry-out.is-error { color: #f3988f; }
+
+.entry-status {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  color: var(--fg-dim);
+}
+
+.prompt {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.prompt.is-echo .prompt-mark,
+.prompt.is-echo .prompt-mirror { color: var(--fg); }
+
+.ask { margin: 0; }
+/* on home the question belongs to the banner block, so it sits tighter */
+.app.is-landing .ask { margin-top: -8px; }
+
+/* the spec panel's columns, per the updated frame */
+.spec { width: 283px; }
+.spec-row { gap: 32px; }
+.spec-key { width: 109px; }
+
+.prompt-mark { flex-shrink: 0; }
+.prompt.in-context .prompt-mark { color: var(--accent-cart); text-transform: uppercase; }
+
+/* inline, not flex: a flex box with an empty first child synthesises its
+   baseline elsewhere and nudges the row by a few px on the first keystroke */
+.prompt-mirror {
+  display: inline-block;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* the real input drives everything but is never seen — the mirror is the line */
+/* the real input drives the line but is never seen */
+.prompt-input {
+  position: absolute;
+  left: -9999px;
+  width: 10px;
+  height: 10px;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: transparent;
+  caret-color: transparent;
+  font: inherit;
+  font-feature-settings: inherit;
+  outline: none;
+}
+
+.caret {
+  display: inline-block;
+  min-width: 1ch;
+  color: var(--bg);
+  background: var(--fg);
+}
+
+/* a block caret blinks by swapping colours, not by fading */
+.prompt.is-live .caret { animation: caret-blink 1.06s steps(1, end) infinite; }
+.prompt:not(.is-live) .caret { background: none; color: var(--fg); outline: 1px solid var(--fg-dim); }
+.prompt.is-busy .caret { animation: none; background: var(--fg-dim); }
+
+@keyframes caret-blink {
+  0%, 50% { background: var(--fg); color: var(--bg); }
+  50.01%, 100% { background: none; color: var(--fg); }
+}
+
+.suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  max-height: 46vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hair) transparent;
+}
+
+/* one row per node of the tree; depth is the indent */
+.suggestion { display: block; padding-left: calc(var(--depth, 0) * 24px); }
+.suggestion .node { color: var(--fg-dim); }
+.suggestion.on-path .node { color: rgba(255, 255, 255, 0.72); }
+.suggestion.is-branch .node { color: rgba(255, 255, 255, 0.72); }
+.suggestion.is-active .node { color: var(--fg); }
+.suggestion.is-empty { color: var(--fg-dim); }
+
+/* every clickable line in the rail */
+.node {
+  color: var(--fg-dim);
+  line-height: 1.64;
+  transition: color var(--t-hover) var(--expo-out), transform var(--t-hover) var(--expo-out);
+}
+
+.node:hover,
+.node:focus-visible { color: var(--fg); outline: none; }
+.node[aria-expanded="true"],
+.node[aria-current="true"] { color: var(--fg); }
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  padding-left: 48px;
+  color: var(--fg-dim);
+}
+
+.body p { margin: 0; }
+.body .row { display: flex; gap: 8px; align-self: stretch; }
+.body .row .k { flex: 1; min-width: 0; }
+.body .row .v { flex-shrink: 0; }
+
+/* key/value pairs read better left-aligned on a fixed gutter */
+.body .row.is-pair { align-self: auto; gap: 16px; }
+.body .row.is-pair .k { flex: 0 0 48px; }
+.body .total { color: var(--fg); }
+
+.find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: stretch;
+  border-bottom: 1px solid var(--hair);
+  padding-bottom: 6px;
+  max-width: 240px;
+}
+
+.find input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: none;
+  color: var(--fg);
+  font: inherit;
+  font-feature-settings: inherit;
+  caret-color: var(--accent);
+}
+
+.find input::placeholder { color: rgba(255, 255, 255, 0.3); }
+
+.wordmark {
+  display: block;
+  width: 137px;
+  height: auto;
+  flex-shrink: 0;
+}
+
+/* ── stage ───────────────────────────────────────────────────── */
+.stage {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* everything below the stage header */
+.stage-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stage-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  z-index: 1;
+  padding: var(--pad-y) var(--pad-x);
+  display: grid;
+  place-items: center;
+}
+
+/* product screens: list left, spec right, product art behind both */
+.stage-body.is-catalog {
+  display: flex;
+  overflow: hidden;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+/* long-form screens scroll inside the stage */
+.stage-body.is-doc {
+  display: block;
+  /* justify-items from the base still applies to block children — reset it */
+  place-items: normal;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--hair) transparent;
+}
+
+.hero {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+/* mirrors the Figma frame: 73.47% wide, 98.37% tall, offset 0.78% from top */
+.hero img {
+  position: absolute;
+  left: 13.29%;
+  top: 0.78%;
+  width: 73.47%;
+  height: 98.37%;
+  object-fit: contain;
+}
+
+.hero-empty {
+  display: none;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.hero.is-empty img { display: none; }
+.hero.is-empty .hero-empty { display: block; }
+
+/* ── product list ────────────────────────────────────────────── */
+.products {
+  position: relative;
+  z-index: 1;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.products li { position: relative; z-index: 1; }
+
+/* every row carries the active row's padding, so selecting never shifts the list */
+.products button {
+  padding: 8px 0;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  transition: color var(--t-hover) var(--expo-out), transform var(--t-move) var(--expo);
+}
+
+.products button:hover,
+.products button:focus-visible { color: var(--fg); outline: none; }
+
+.products li:not(.is-active) button:hover,
+.products li:not(.is-active) button:focus-visible { transform: translateX(4px); }
+
+.products .empty { color: var(--fg-dim); text-transform: uppercase; }
+
+/* selection reads the same way as a rail hover: the label simply goes full white */
+.products li.is-active button { color: var(--fg); }
+
+/* ── spec panel ──────────────────────────────────────────────── */
+.spec {
+  position: relative;
+  z-index: 1;
+  width: 251px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.spec-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.spec-key { width: 72px; flex-shrink: 0; }
+.spec-val { text-transform: uppercase; }
+
+.stepper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon { width: 16px; height: 16px; display: block; }
+
+.icon-btn,
+.size-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform var(--t-hover) var(--expo-out);
+}
+
+.icon-btn.is-minus:hover { transform: translateX(-2px); }
+.icon-btn.is-plus:hover { transform: translateX(2px); }
+.size-toggle:hover { transform: translateX(3px); }
+.icon-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+.size-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 3;
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+  min-width: 88px;
+  background: #232323;
+  border: 1px solid var(--hair);
+}
+
+.size-menu button {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  color: var(--fg-dim);
+}
+
+.size-menu button:hover,
+.size-menu button:focus-visible { color: var(--fg); background: rgba(255,255,255,0.06); outline: none; }
+.size-menu button[aria-current="true"] { color: var(--fg); }
+
+.add-to-cart {
+  color: var(--accent-cart);
+  text-transform: uppercase;
+}
+
+.add-to-cart { transition: transform var(--t-hover) var(--expo-out); }
+.add-to-cart:hover:not(:disabled) { transform: translateX(4px); }
+
+/* ── narrow viewports ────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .app { flex-direction: column; height: auto; overflow: visible; }
+  .terminal { width: 100%; border-right: 0; border-bottom: 1px solid var(--hair); }
+  .stage-body { flex-direction: column; min-height: 70vh; }
+  .hero { position: relative; inset: auto; order: -1; width: 100%; height: 40vh; pointer-events: auto; }
+  .hero img { max-width: 100%; }
+  .spec { width: 100%; }
+}
+
+/* ── boot + landing phases ──────────────────────────────────────── */
+
+/* "Loading Landing Screen" is an empty frame — a blank terminal */
+.app.is-booting .terminal,
+.app.is-booting .stage { visibility: hidden; }
+
+/* the initial state: the rail at its normal width, and the stage entirely bare
+   — the top nav does not exist yet, border and all */
+.app.is-landing .stage .panel-head { display: none; }
+
+.notice {
+  margin: 0;
+  color: var(--accent-cart);
+}
+
+.loading {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  color: var(--fg-dim);
+}
+
+.spin {
+  display: inline-block;
+  width: 8px;
+  color: var(--accent);
+}
+
+/* ── long-form content (About / Shipping / Contact) ─────────────── */
+
+.prose {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 534px;
+}
+
+.prose section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prose h2,
+.faq-entry h3,
+.faq-label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 16px;
+  color: var(--fg);
+  text-transform: uppercase;
+}
+
+.prose p,
+.faq-entry p {
+  margin: 0;
+  color: var(--fg-dim);
+}
+
+/* ── FAQ: category column + Q/A column ─────────────────────────── */
+
+.faq {
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+}
+
+.faq-group {
+  display: grid;
+  /* 533 + 534 at the design's 1728px; the label column absorbs anything narrower */
+  grid-template-columns: minmax(160px, 533px) minmax(0, 534px);
+  gap: 32px;
+  align-items: start;
+}
+
+.faq-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.faq-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── cart ──────────────────────────────────────────────────────── */
+
+.cart {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1240px;
+}
+
+.cart-row {
+  display: grid;
+  grid-template-columns: 400px 140px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.cart-name { text-transform: uppercase; }
+.cart-price { text-align: right; }
+
+.cart-qty {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fg-dim);
+}
+
+.cart-qty .node { padding: 0 2px; }
+
+.cart-total {
+  margin-top: 16px;
+  color: var(--fg);
+}
+
+.cart-total .cart-name { text-transform: capitalize; }
+
+.cart-actions .add-to-cart:disabled {
+  color: var(--fg-dim);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.cart-actions .add-to-cart { justify-self: end; }
+.cart-empty { margin: 0; color: var(--fg-dim); }
+
+/* ── WIP screens (Checkout / Account) ──────────────────────────── */
+
+.wip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.wip-title {
+  margin: 0;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .faq-group { grid-template-columns: 1fr; gap: 16px; }
+  .cart-row { grid-template-columns: 1fr auto; }
+  .cart-price { grid-column: 2; }
+  .cart-qty { grid-column: 1 / -1; }
+}
+
+/* ═══ MOTION ═════════════════════════════════════════════════════
+   Position only — translate for movement, clip for panel reveals.
+   Nothing scales, nothing fades. Expo in-out is the house curve;
+   expo-out is used for hovers, which have to feel instant.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --expo: cubic-bezier(0.87, 0, 0.13, 1);
+  --expo-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* these must match MOTION in motion.js — the sequencer waits on these exact
+     durations before starting the next phase */
+  --t-exit: 240ms;
+  --t-boot: 380ms;
+  --t-reveal: 400ms;
+  --t-move: 360ms;
+  --t-rail: 640ms;
+  --t-hover: 200ms;
+}
+
+/* a clip box; its .ink slides up into view from underneath */
+.mask { display: block; overflow: hidden; }
+button.mask, span.mask, .spec-key.mask, .cart-name, .cart-price { display: inline-block; }
+.cart-name, .cart-price { overflow: hidden; }
+
+.ink {
+  display: block;
+  transition: transform var(--t-move) var(--expo);
+}
+
+@keyframes ink-in {
+  from { transform: translateY(130%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes rise-in {
+  from { transform: translateY(14px); }
+  to { transform: translateY(0); }
+}
+
+@keyframes hero-in {
+  from { transform: translateY(40px); }
+  to { transform: translateY(0); }
+}
+
+/* phase 3 hasn't started yet: hold below the clip line, no animation */
+.waiting .ink { transform: translateY(130%); }
+.waiting .rise { transform: translateY(14px); }
+.waiting.hero img,
+.waiting.hero .hero-empty { transform: translateY(40px); }
+
+.enter .ink,
+.enter.mask .ink {
+  animation: ink-in var(--t-reveal) var(--expo) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* phase 1: outgoing content retracts the way it arrived */
+@keyframes ink-out {
+  from { transform: translateY(0); }
+  to { transform: translateY(130%); }
+}
+
+@keyframes rise-out {
+  from { transform: translateY(0); }
+  to { transform: translateY(14px); }
+}
+
+.exit .ink {
+  animation: ink-out var(--t-exit) var(--expo) both;
+  animation-delay: var(--d, 0ms);
+}
+
+.exit .rise {
+  animation: rise-out var(--t-exit) var(--expo) both;
+  animation-delay: var(--d, 0ms);
+}
+
+.exit.hero img,
+.exit.hero .hero-empty { animation: ink-out var(--t-exit) var(--expo) both; }
+
+.enter .rise {
+  animation: rise-in var(--t-reveal) var(--expo) both;
+  animation-delay: calc(var(--d, 0ms) + 60ms);
+}
+
+.is-swapping img,
+.is-swapping .hero-empty,
+.enter.hero img,
+.enter.hero .hero-empty {
+  animation: hero-in var(--t-reveal) var(--expo) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* first paint: whatever can't be clipped rises into place instead */
+@keyframes boot-rise {
+  from { transform: translateY(14px); }
+  to { transform: translateY(0); }
+}
+
+.boot-rise {
+  animation: boot-rise var(--t-boot) var(--expo) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* ── hover nudges ──────────────────────────────────────────────── */
+
+.node:hover,
+.node:focus-visible { transform: translateX(4px); }
+.cart-qty .is-minus:hover { transform: translateX(-2px); }
+.cart-qty .is-plus:hover { transform: translateX(2px); }
+
+/* ── number / label rolls ──────────────────────────────────────── */
+
+.slot {
+  display: inline-block;
+  overflow: hidden;
+  height: 16px;
+  line-height: 16px;
+  vertical-align: bottom;
+}
+
+.slot-col {
+  display: block;
+  transform: translateY(0);
+}
+
+.slot-col.from-above { transform: translateY(-16px); }
+
+.slot-col.is-rolling {
+  transform: translateY(-16px);
+  transition: transform var(--t-roll, 400ms) var(--expo);
+}
+
+.slot-col.from-above.is-rolling { transform: translateY(0); }
+
+.slot-line { display: block; height: 16px; }
+
+.qty { display: inline-block; min-width: 1ch; }
+
+/* ── size dropdown: unrolls downward out of the toggle ─────────── */
+
+@keyframes panel-down {
+  from { clip-path: inset(0 0 100% 0); transform: translateY(-6px); }
+  to { clip-path: inset(0 0 0 0); transform: translateY(0); }
+}
+
+.size-menu.is-open { animation: panel-down var(--t-reveal) var(--expo) both; }
+.size-menu.is-open li .ink { animation: ink-in var(--t-move) var(--expo) both; animation-delay: var(--d, 0ms); }
+
+/* ── loading line ──────────────────────────────────────────────── */
+
+.loading .ink { animation: ink-in var(--t-reveal) var(--expo) both; }
+
+.boot .mask .ink {
+  animation: ink-in var(--t-reveal) var(--expo) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* the caret marches in place while a section loads */
+@keyframes caret-step {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.spin { animation: caret-step 720ms var(--expo) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ── product page + compare (sitemap leaves) ────────────────────── */
+
+.stage-body.is-detail {
+  display: flex;
+  overflow: hidden;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 32px;
+}
+
+.stage-body.is-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  place-items: stretch;
+  gap: 32px;
+  overflow: hidden;
+}
+
+.compare-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.compare-panel .hero { position: relative; inset: auto; flex: 1; min-height: 0; }
+.compare-panel .hero img { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.compare-spec {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+.compare-swap { margin-top: 8px; color: var(--accent-cart); }
+
+
+/* ── the view's own controls, in its header ─────────────────────── */
+
+.panel-head { gap: 8px; }
+
+.stage-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.controls { display: flex; align-items: center; gap: 32px; }
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.control-label {
+  color: var(--fg);
+  text-transform: uppercase;
+  transition: transform var(--t-hover) var(--expo-out);
+}
+
+.control-label:hover { transform: translateY(-1px); }
+.control-slash { color: var(--fg-dim); }
+
+.control {
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  transition: color var(--t-hover) var(--expo-out), transform var(--t-hover) var(--expo-out);
+}
+
+.control:hover { color: var(--fg); transform: translateY(-1px); }
+.control.is-on { color: var(--fg); }
+
+/* ── inline size row ────────────────────────────────────────────── */
+
+.sizes { display: flex; align-items: center; gap: 6px; }
+
+.size {
+  color: var(--fg-dim);
+  transition: color var(--t-hover) var(--expo-out);
+}
+
+.size:hover { color: var(--fg); }
+.size.is-on { color: var(--fg); }
+
+.find-field {
+  border-bottom: 1px solid var(--hair);
+  padding-bottom: 2px;
+  min-width: 140px;
+}
+
+.find-field input {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-feature-settings: inherit;
+  outline: none;
+  caret-color: var(--accent);
+  text-transform: uppercase;
+}
+
+.find-field input::placeholder { color: rgba(255, 255, 255, 0.3); text-transform: none; }
+
+
+/* ── detail page ────────────────────────────────────────────────── */
+
+.stage-body.is-detail {
+  display: block;
+  overflow: hidden;
+  padding: 0;
+}
+
+.detail-spec {
+  position: absolute;
+  top: var(--pad-y);
+  left: var(--pad-x);
+  z-index: 2;
+  width: 392px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-spec .spec-row { align-items: flex-start; gap: 32px; }
+.detail-spec .spec-key { width: 109px; flex-shrink: 0; }
+.detail-desc { margin: 0; width: 251px; color: var(--fg-dim); }
+
+/* the product sits large, flush to the bottom-right of the view */
+.detail-art {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 828px;
+  height: 828px;
+  max-width: 64%;
+  max-height: 100%;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  transition: inset var(--t-move) var(--expo);
+}
+
+.detail-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* zoom: the print fills the view */
+.detail-art.is-zoomed {
+  right: -18%;
+  bottom: -22%;
+  width: 132%;
+  height: 132%;
+  max-width: none;
+  max-height: none;
+}
+
+.detail-art.is-empty img { display: none; }
+.detail-art.is-empty .hero-empty { display: block; }
+
+/* ── checkout ───────────────────────────────────────────────────── */
+
+.stage-body.is-checkout {
+  display: grid;
+  grid-template-columns: 392px minmax(0, 1fr);
+  gap: 64px;
+  place-items: stretch;
+  overflow-y: auto;
+  align-content: start;
+}
+
+.co-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.co-head .dot { width: 9px; height: 9px; background: var(--fg); }
+.co-head .label { text-transform: uppercase; }
+
+.checkout-cart, .checkout-form { min-width: 0; }
+
+.co-lines { display: flex; flex-direction: column; gap: 24px; }
+
+.co-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.co-name { text-transform: uppercase; }
+.co-price { text-align: right; }
+.co-total { margin-top: 40px; color: var(--fg); }
+
+.co-form { display: flex; flex-direction: column; gap: 32px; }
+.co-section { display: flex; flex-direction: column; gap: 8px; }
+
+.co-section-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 16px;
+  color: var(--fg);
+}
+
+.co-row { display: flex; gap: 16px; }
+.co-field { flex: 1; min-width: 0; }
+
+.co-input {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--hair);
+  padding: 10px 12px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-feature-settings: inherit;
+  outline: none;
+  caret-color: var(--accent);
+  transition: border-color var(--t-hover) var(--expo-out);
+}
+
+.co-input:focus { border-color: rgba(255, 255, 255, 0.34); }
+.co-input::placeholder { color: var(--fg-dim); }
+.co-input.is-select { color: var(--fg-dim); cursor: default; }
+
+.co-option {
+  border: 1px solid var(--hair);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.co-option.is-on { border-color: rgba(255, 255, 255, 0.28); }
+
+.co-radio { display: flex; align-items: center; gap: 10px; }
+
+.co-radio .radio {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border: 1px solid var(--fg-dim);
+}
+
+.co-option.is-on .radio { background: var(--fg); border-color: var(--fg); }
+
+.co-toggle { display: flex; align-items: center; gap: 8px; }
+.co-toggle-label { color: var(--fg-dim); margin-right: auto; }
+.co-note { margin: 0; color: var(--fg-dim); }
+.co-pay { align-self: flex-start; margin-top: 8px; }
+
+/* ── a command's own choice, in the rail ────────────────────────── */
+
+/* the choice is spaced like the command list above it — same 8px between rows */
+.pick { display: flex; flex-direction: column; gap: 8px; }
+.pick-ask { margin: 0; }
+.pick-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* no idle highlight: the options are dim until hovered (.node:hover) or steered
+   into with the arrows. Don't restate the dim colour here — an equal-specificity
+   rule after .node:hover would outrank the hover. */
+.pick-row.is-active .node { color: var(--fg); }
+
+/* ── a command's own field, in the rail ─────────────────────────── */
+
+.arg-line {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.arg-key { flex-shrink: 0; }
+.arg-val { color: var(--fg-dim); white-space: pre; }
+.arg-val .caret { background: var(--fg); animation: caret-blink 1.06s steps(1, end) infinite; }
+
+
+/* ── temporary: product images hidden (see HIDE_IMAGES in app.js) ── */
+
+.app.no-images .hero img,
+.app.no-images .detail-art img,
+.app.no-images .compare-panel .hero img { display: none; }

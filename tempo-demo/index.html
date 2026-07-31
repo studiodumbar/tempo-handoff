@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="cache-control" content="no-store" />
+<title>TEMPO SHOP — mpp.sh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app is-booting" id="app">
+    <!-- ── TERMINAL ─────────────────────────────────────────────── -->
+    <aside class="terminal">
+      <header class="panel-head">
+        <span class="dot"></span>
+        <span class="label mask"><span class="ink">terminal</span></span>
+      </header>
+
+      <div class="terminal-body" id="terminalBody">
+        <!-- the session banner: home only -->
+        <div class="boot" id="boot">
+          <p class="muted mask"><span class="ink">mpp.dev@fad209e (released 22h ago)</span></p>
+          <p class="mask"><span class="ink accent">./mpp.sh</span></p>
+        </div>
+
+        <!-- the command line: the last thing run, or what you are typing -->
+        <div class="transcript" id="transcript"></div>
+
+        <div class="prompt" id="promptLine" hidden>
+          <span class="prompt-mark accent">&gt;</span>
+          <span class="prompt-mirror" id="inputMirror"></span>
+        </div>
+
+        <input
+          id="promptInput"
+          class="prompt-input"
+          type="text"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          aria-label="terminal command"
+          aria-autocomplete="list"
+          aria-controls="suggestions"
+        />
+
+        <p class="ask mask" id="ask"><span class="ink">What are you looking for?</span></p>
+
+        <ul class="suggestions" id="suggestions" role="listbox" aria-label="commands"></ul>
+
+        <!-- a command that takes a value asks for it here -->
+        <p class="arg-line" id="argLine" hidden></p>
+
+        <!-- a command that offers a choice opens it here -->
+        <div class="pick" id="pickBlock" hidden></div>
+      </div>
+
+      <footer class="panel-foot">
+        <img class="wordmark" src="assets/tempo-shop.svg" alt="TEMPO SHOP" width="137" height="17" />
+        <button class="node mask" id="cartBtn">
+          <span class="ink">[<span id="cartCount">0</span>] CART</span>
+        </button>
+      </footer>
+    </aside>
+
+    <!-- ── STAGE ────────────────────────────────────────────────── -->
+    <main class="stage" id="stage">
+      <header class="panel-head">
+        <span class="dot"></span>
+        <span class="label mask" id="stageLabel"><span class="ink"></span></span>
+        <div class="stage-controls" id="stageControls"></div>
+      </header>
+      <!-- everything below the stage header -->
+      <div class="stage-view">
+        <div class="stage-body" id="stageBody"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="content.js"></script>
+  <script src="motion.js"></script>
+  <script src="terminal.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
