@@ -862,6 +862,34 @@ if (run("layout")) {
         eq(shown, wantsDrawer, `drawer handle at ${w}px:`);
       });
 
+      if (w <= 900 && surface === "motion") {
+        await t(`${surface} at ${w}: the drawer opens, and the stage closes it`, async () => {
+          const offset = () => page.evaluate(() =>
+            Math.round(document.querySelector(".left-panel").getBoundingClientRect().left));
+          const parked = await offset();
+          ok(parked < 0, `the drawer starts on screen at ${parked}px`);
+
+          await page.click(".lib-tab");
+          await page.waitForTimeout(400);
+          const open = await offset();
+          ok(open >= 0, `the drawer did not come in — left is ${open}px`);
+          eq(await page.evaluate(() =>
+            document.querySelector(".lib-tab").getAttribute("aria-pressed")), "true");
+
+          // the stage is the way out — click the part the drawer is not over
+          const box = await page.locator("#stage").boundingBox();
+          await page.mouse.click(box.x + box.width - 12, box.y + box.height - 12);
+          await page.waitForTimeout(400);
+          ok(await offset() < 0, "tapping the stage did not close the drawer");
+
+          await page.click(".lib-tab");
+          await page.waitForTimeout(400);
+          await page.keyboard.press("Escape");
+          await page.waitForTimeout(400);
+          ok(await offset() < 0, "Escape did not close the drawer");
+        });
+      }
+
       await t(`${surface} at ${w}: the page never scrolls sideways`, async () => {
         const over = await page.evaluate(() =>
           document.documentElement.scrollWidth - window.innerWidth);

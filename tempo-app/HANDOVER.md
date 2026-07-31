@@ -1,6 +1,6 @@
 # HANDOVER
 
-Branch `tempo-polish`, 16 commits off `main`. `main` is untouched at `e4a480d`
+Branch `tempo-polish`, 21 commits off `main`. `main` is untouched at `e4a480d`
 — the tree exactly as I found it, committed as a restore point. Nothing was
 pushed.
 
@@ -9,7 +9,7 @@ npm run gate     # check + test + drive — the whole verification pass
 npm start        # http://localhost:8484
 ```
 
-80 tests green, 44 drive checks green, `npm run check` clean.
+84 tests green, 44 drive checks green, `npm run check` clean.
 
 ---
 
@@ -28,7 +28,11 @@ anywhere, all recoverable from `main`.
 role-named type sizes, five radii, four control heights, four elevations, five
 motion durations, three easing curves. No component keeps a raw value.
 `npm run check` fails the build on a literal duration or easing curve outside
-the token block, and on any CSS class the JS names that no rule defines.
+the token block, on any CSS class the JS names that no rule defines, **and on
+any rule nothing can reach**. That second direction is the one that
+accumulates silently through a refactor; it found eight dead rules left by this
+session's own rewrites, and one that mattered — `.skip-link`, styled and never
+built.
 
 `tools/gen-icons.mjs` pulls only the icons the app names out of
 `@hugeicons/core-free-icons` (83 MB, 5 448 modules) and writes `src/ui/icons.js`
@@ -103,6 +107,18 @@ at 768 goes from 15% of the width to 47%.
 The timeline's height was a hand-kept constant that no longer matched its
 lanes. It is derived from them.
 
+### The library
+
+87 animation names in a 244 px column is a list you scroll, not one you choose
+from. The names carry their own structure — 75 of 87 share a first word with at
+least two others, and ten end in " blocks", a variant tag rather than part of
+the name — so `modeFamilies()` derives nine families from the data and the list
+shows `ZOOM` then `zoom / out / quarter / spin / lean / plane`. The Visual
+picker groups the same way. Nothing here is invented metadata.
+
+A failed asset used to look exactly like a working one, and clicking it did
+nothing. Failed rows carry an alert icon, read "failed", and clicking retries.
+
 ### Shortcuts
 
 They existed only in the README. Both surfaces carry a control in the chrome
@@ -124,7 +140,7 @@ these are like-for-like.
 | First frame | 24 ms | 21 ms | 19 ms | 18 ms |
 | Sustained fps | 120.1 | 120.1 | 120.1 | 120.2 |
 | p95 frame | 9.9 ms | 9.8 ms | 9.6 ms | 9.2 ms |
-| Long tasks | 5, max 188 ms | **1, 70 ms** | 5, max 218 ms | **2, max 172 ms** |
+| Long tasks | 5, max 188 ms | **1, ~71 ms** | 5, max 218 ms | **2, max ~168 ms** |
 | Retained heap | 141.1 MB | **17.4 MB** | 132.6 MB | **57.5 MB** |
 
 Both surfaces fetched and sampled the entire GLB catalogue at boot whether or
@@ -183,13 +199,17 @@ opinion:
 6. **Section collapse animates opacity, not the row track.** The height snaps.
    (D7)
 7. **The library filter is a plain substring match**, not fuzzy. `zoom` finds
-   the eleven zooms; `zm` finds nothing.
-8. **The clip list stayed** even though it mirrors the timeline. It earns its
+   the 25 zooms; `zm` finds nothing.
+8. **Animation families are derived from the first word of the label.** It is a
+   heuristic over your naming, not declared metadata. It happens to be right
+   for 75 of 87 today; renaming a mode moves it between families silently. A
+   `family` field in `modes.js` would make it explicit.
+9. **The clip list stayed** even though it mirrors the timeline. It earns its
    place with durations and drag-to-reorder, but it is duplicated information
    in a dense panel and you may disagree.
-9. **`--text-faint` moved from `#5c5c5c` to `#8a8a8a`** to clear AA. It is a
+10. **`--text-faint` moved from `#5c5c5c` to `#8a8a8a`** to clear AA. It is a
    visibly lighter grey; the old value was below contrast minimums.
-10. **The starter project is "Untitled"**, not "Hatch motion".
+11. **The starter project is "Untitled"**, not "Hatch motion".
 
 ---
 
@@ -222,13 +242,12 @@ opinion:
    traced to it could be a few hundred kB. Lazy loading hid the cost; it did not
    remove it. Needs your call because it is your asset.
 
-2. **Give the 87 animations real categories.** The filter made the list usable,
-   but `zoom`, `zoom out`, `zoom quarter`, `zoom spin`, `zoom lean`, `zoom
-   plane`, `zoom rails`, `zoom marks`, `zoom surge`, `zoom out blocks`, `zoom
-   quarter blocks`, `zoom spin blocks` are still twelve names you cannot tell
-   apart without trying each one. They want either grouping in `modes.js` or a
-   hover preview — a still frame per mode, rendered once and cached — which
-   would answer it properly.
+2. **Give each animation a preview.** Grouping got the list from 87 flat names
+   to nine families, but inside `zoom` there are still 25 rows you cannot tell
+   apart without trying each one. The honest answer is a thumbnail: render one
+   frame per mode offscreen at, say, 96 px, cache it, and show it on hover or
+   in a grid. The evaluator is already deterministic (`renderAt`), so a still
+   per mode is a loop over the same code the exporter uses.
 
 3. **Undo in Visual.** The confirmations cover the destructive paths, but the
    asymmetry between the two surfaces is felt: Motion has ⌘Z and Visual does
