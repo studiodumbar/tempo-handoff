@@ -429,7 +429,8 @@ export function buildInspector(app) {
               }
             }
           },
-          { min: spec.min, max: spec.max, step: spec.step, prefix: { text: key, tip: key } },
+          { min: spec.min, max: spec.max, step: spec.step,
+            prefix: { text: key, tip: `${key} — double-click to reset` } },
         );
         const prefixEl = f.el.querySelector(".field-prefix");
         const syncOverride = () => {
@@ -438,18 +439,17 @@ export function buildInspector(app) {
         };
         syncOverride();
         fields.push({ refresh: syncOverride });
-        f.el.addEventListener("contextmenu", (e) => {
-          e.preventDefault();
+        /* Clearing one override was a right-click menu — a gesture nothing
+           announced. Double-click matches Visual, and the field's own tooltip
+           names it. Right-click still works for anyone who learned it. */
+        const clearOverride = () => {
           const c = getClip();
           if (!c || c.params[key] === undefined) return;
-          showMenu([{
-            label: "Reset override",
-            action: () => {
-              mut((p) => { const cc = p.clips.find((x) => x.id === cid); if (cc) delete cc.params[key]; });
-              if (isRegen) { invalidateClip(cid); invalidatePair(); }
-            },
-          }], { x: e.clientX, y: e.clientY });
-        });
+          mut((p) => { const cc = p.clips.find((x) => x.id === cid); if (cc) delete cc.params[key]; });
+          if (isRegen) { invalidateClip(cid); invalidatePair(); }
+        };
+        f.el.addEventListener("dblclick", clearOverride);
+        f.el.addEventListener("contextmenu", (e) => { e.preventDefault(); clearOverride(); });
         return f;
       });
       const rows = [];

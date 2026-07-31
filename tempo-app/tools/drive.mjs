@@ -198,6 +198,36 @@ must(await page.evaluate(() => !window.__app.store.session.playing), "pause stop
     "dragging the ruler scrubs the playhead", "playhead did not move");
 }
 
+// -- drag a clip's tail to change its hold --
+{
+  const before = await page.evaluate(() => window.__app.store.project.clips[0].hold);
+  const box = await page.locator(".tl-clip").first().boundingBox();
+  await page.mouse.move(box.x + box.width - 3, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width + 90, box.y + box.height / 2, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  const after = await page.evaluate(() => window.__app.store.project.clips[0].hold);
+  must(after > before + 0.1, "dragging a clip's tail lengthens its hold",
+    `hold went ${before} -> ${after}`);
+}
+
+// -- reorder by dragging a row in the clip list --
+{
+  const first = await page.evaluate(() => window.__app.store.project.clips[0].label);
+  const rows = page.locator(".seq-row");
+  const a = await rows.nth(0).boundingBox();
+  const b = await rows.nth(2).boundingBox();
+  await page.mouse.move(a.x + 20, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + 20, b.y + b.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  const nowFirst = await page.evaluate(() => window.__app.store.project.clips[0].label);
+  must(nowFirst !== first, "dragging a row in the clip list reorders it",
+    `the list still starts with ${nowFirst}`);
+}
+
 // -- camera keyframe --
 {
   const before = await page.evaluate(() => window.__app.store.project.camera.kfs.length);

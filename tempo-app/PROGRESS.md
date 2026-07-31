@@ -161,3 +161,25 @@ panel text over six words.
    "longsleeve" beside a model called "long sleeve".
 5. The menu's search row takes the focus ring as a row, not as a bare input
    floating inside it.
+
+## Loop 4 — the state most people actually meet, 2026-07-31
+
+`models/` is `.vercelignore`d, so on the deployed site every GLB 404s — and
+nothing tested that. A `deployed` test group now serves 404s for `**/models/**`
+and checks the app is honest about it: Visual still opens on its plate and
+draws, picking an unavailable model explains and falls back rather than leaving
+an empty canvas, the library marks the asset as failed, no unhandled error
+escapes, and Motion stays usable. Lazy loading already made this much better —
+the boot no longer fires a storm of failing requests — but it was untested.
+
+Also this loop:
+
+- Clearing one parameter override in Motion was a right-click menu, a gesture
+  nothing announced. Double-click, matching Visual, with the tooltip saying so.
+  Right-click still works.
+- Visual's panel kept its scroll position across a rebuild. The style switch,
+  the canvas ratio and changing source all rebuild it, and each one used to
+  throw the reader back to the top of a panel they were working halfway down.
+- The driver now drags a clip's tail to lengthen its hold and drags a row in
+  the clip list to reorder — the two direct-manipulation gestures nothing
+  covered. 44 checks.

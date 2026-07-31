@@ -605,11 +605,16 @@ function sourceButton() {
 // ---- panel ------------------------------------------------------------------------
 
 function buildPanel() {
+  // Several controls rebuild the whole panel — the style switch, the canvas
+  // ratio, changing source. Losing the scroll position on each one throws the
+  // reader back to the top of a panel they were working halfway down.
+  const scroll = panelBody.scrollTop;
   panelBody.textContent = "";
   panelFoot.textContent = "";
   panelBody.append(...sourceSection(), ...lookSection(), adjustSection(),
     ...canvasSection(), ...spatialSection());
   panelFoot.append(...exportFoot());
+  panelBody.scrollTop = scroll;
 }
 
 function sourceSection() {

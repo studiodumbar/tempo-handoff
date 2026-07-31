@@ -695,6 +695,61 @@ if (run("motion")) {
   await ctx.close();
 }
 
+// ============================================================ deployed
+// models/ is .vercelignored, so on the deployed site every GLB 404s. That is
+// the state most people meet the app in, and nothing tested it.
+if (run("deployed")) {
+  group = "deployed";
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await page.route("**/models/**", (r) => r.fulfill({ status: 404, body: "" }));
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await page.goto(`${BASE}/index.html`, { waitUntil: "load" });
+  await page.waitForTimeout(2000);
+
+  await t("Visual still opens on its plate when no model can load", async () => {
+    eq(await page.evaluate(() => window.__visual.config.target), "asset:plate");
+    const marks = await page.evaluate(() => (window.__visual.svg().match(/<rect|<circle/g) || []).length);
+    ok(marks > 50, `the stage drew only ${marks} marks`);
+  });
+
+  await t("picking an unavailable model says so and falls back", async () => {
+    await page.evaluate(() => window.__visual.setTarget("asset:mug"));
+    await page.waitForTimeout(2500);
+    const toastText = await page.evaluate(() =>
+      [...document.querySelectorAll(".toast")].map((t2) => t2.textContent).join(" | "));
+    ok(/not available|Could not/i.test(toastText), `no explanation shown — toasts: "${toastText}"`);
+    eq(await page.evaluate(() => window.__visual.config.target), "asset:plate",
+      "left staring at an empty canvas:");
+  });
+
+  await t("no unhandled error escapes the failed load", async () => {
+    eq(errors.join(" | "), "");
+  });
+
+  await t("Motion survives a project whose assets 404", async () => {
+    const m = await ctx.newPage();
+    const merr = [];
+    m.on("pageerror", (e) => merr.push(String(e)));
+    await m.route("**/models/**", (r) => r.fulfill({ status: 404, body: "" }));
+    await m.goto(`${BASE}/editor.html`, { waitUntil: "load" });
+    await m.waitForTimeout(2500);
+    eq(merr.join(" | "), "", "page errors:");
+    const state = await m.evaluate(() =>
+      window.__app.library.assets().filter((a) => a.state === "error").length);
+    ok(state > 0, "the library did not mark any asset as failed");
+    // and the surface is still usable
+    const before = await m.evaluate(() => window.__app.store.project.clips.length);
+    await m.evaluate(() => window.__app.actions.addClip("mode", "sphere"));
+    eq(await m.evaluate(() => window.__app.store.project.clips.length), before + 1,
+      "could not add a clip after a failed asset load");
+    await m.close();
+  });
+
+  await ctx.close();
+}
+
 // ============================================================ layout
 if (run("layout")) {
   group = "layout";
