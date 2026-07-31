@@ -177,7 +177,7 @@ input {
   transform: translateY(-200%);
   transition: transform var(--dur-3) var(--ease-out);
 }
-.skip-link:focus-visible { transform: none; }
+.skip-link:focus { transform: none; }
 
 body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select: none !important; }
 
@@ -699,7 +699,6 @@ button:disabled .icon { opacity: 0.5; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.readout { color: var(--text-dim); font-variant-numeric: tabular-nums; }
 
 .prop-row {
   display: grid;
@@ -721,13 +720,6 @@ button:disabled .icon { opacity: 0.5; }
 .row-label.overridden { color: #ffffff; }
 .prop-row.pair .pair-fields { display: flex; gap: var(--sp-3); }
 .prop-row.pair .field { flex: 1; min-width: 0; }
-
-.note {
-  padding: var(--sp-2) var(--gutter);
-  color: var(--text-faint);
-  line-height: var(--lh-prose);
-}
-.note.busy { display: flex; align-items: center; gap: var(--sp-3); }
 
 /* ================= fields ================= */
 
@@ -926,26 +918,8 @@ button:disabled .icon { opacity: 0.5; }
 }
 .loading-row .icon { width: var(--icon-s); height: var(--icon-s); }
 
-/* skeleton rows for a list that is still arriving */
-.skeleton {
-  height: var(--sp-5);
-  margin: var(--sp-3) var(--gutter);
-  border-radius: var(--r-1);
-  background: linear-gradient(90deg, var(--field) 25%, var(--field-hover) 50%, var(--field) 75%);
-  background-size: 300% 100%;
-  animation: shimmer 1.4s linear infinite;
-}
-@keyframes shimmer { to { background-position: -300% 0; } }
-
 /* ================= inspector bits ================= */
 
-.clip-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  padding: var(--sp-2) var(--gutter) 0;
-}
 .chip {
   display: inline-flex;
   align-items: center;
@@ -1538,7 +1512,6 @@ button:disabled .icon { opacity: 0.5; }
 .menu-hint { color: var(--text-faint); font-size: var(--fs-small); }
 .menu-sep { height: 1px; margin: var(--sp-2) var(--sp-3); background: var(--panel-border); }
 .menu-sub { color: var(--text-faint); font-size: var(--fs-small); flex: none; }
-.menu-plain { display: contents; }
 .menu-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -1847,7 +1820,6 @@ button:disabled .icon { opacity: 0.5; }
     animation: spin 2s linear infinite !important;
     animation-duration: 2s !important;
   }
-  .skeleton { animation: none !important; background: var(--field); }
 
   /* the drawer and its handle carry their own transition at a higher
      specificity than the .icon-btn rule above, so they need naming */

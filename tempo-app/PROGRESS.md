@@ -211,3 +211,26 @@ name per concept has to hold across surfaces, not just within one.
   out of the glyph rasteriser's list.
 
 Five sections became four, and all 22 scene parameters are still there.
+
+## Loop 6 — dead CSS, and the skip link I never wired up, 2026-07-31
+
+`tools/check.mjs` already failed on a class the JS names that no rule defines.
+It now fails the other way too: a rule nothing can reach. That direction is the
+one that silently accumulates through a refactor, and it found eight — including
+one that mattered.
+
+- **`.skip-link` was styled but never built.** I wrote the CSS in the system
+  phase and never added the element, so both surfaces started the tab order at
+  whatever happened to be first in the DOM. Both have one now, pointing at the
+  panel that holds the controls; a test walks the first Tab and checks the link
+  is focused, on screen, and points at something that exists. On Motion it has
+  to `prepend`, because the zoom chip is already on the body and tab order is
+  DOM order — a skip link that is not first skips nothing.
+- **`.note`, `.skeleton`, `.readout`, `.clip-meta`, `.menu-plain`,
+  `.v-note-pad`, `.vfoot`** — all left behind by this session's own rewrites.
+  Removed.
+- The checker learned about `cls:` options and `icon(name, "cls")`, which were
+  producing false positives for six live rules.
+
+Also: a skip link now reveals on `:focus`, not `:focus-visible`. It exists
+precisely for the case where focus arrives without a pointer.

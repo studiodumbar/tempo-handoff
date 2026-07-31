@@ -24,7 +24,7 @@ import { defaultProject, defaultTransition, cleanBrailleScene } from "./store.js
 import {
   h, icon, toast, showMenu, confirmAction, showShortcuts, isMac, modKey,
 } from "./ui/dom.js";
-import { appNav } from "./ui/appnav.js";
+import { appNav, skipLink } from "./ui/appnav.js";
 import {
   NumberField, SelectField, SwitchField, ColorField, SegmentedField,
   section, grid2, row, button,
@@ -516,6 +516,9 @@ const SHORTCUTS = [
 ];
 
 const panel = document.getElementById("vpanel");
+panel.id = "vpanel";
+panel.tabIndex = -1;
+document.body.prepend(skipLink("vpanel", "Skip to controls"));
 panel.append(appNav("visual", SHORTCUTS));
 const panelMain = h("div", { class: "v-panel-main" });
 const panelBody = h("div", { class: "panel-body" });

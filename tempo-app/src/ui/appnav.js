@@ -13,6 +13,16 @@ const MODES = [
 ];
 
 /**
+ * The first tab stop on every surface: a link straight to the panel, so a
+ * keyboard user is not obliged to walk the whole control list of whatever
+ * comes first in the DOM to reach the controls they want. Visible only when
+ * focused.
+ */
+export function skipLink(targetId, label) {
+  return h("a", { class: "skip-link", href: `#${targetId}` }, label);
+}
+
+/**
  * @param {string} active
  * @param {Array<{title: string, keys: Array<[string, string]>}>} shortcuts
  */

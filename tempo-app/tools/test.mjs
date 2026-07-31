@@ -141,6 +141,22 @@ if (run("a11y")) {
       eq(unnamed.join(", "), "", "unnamed controls:");
     });
 
+    await t(`${surface}: the first tab stop skips to the controls`, async () => {
+      await page.evaluate(() => document.body.focus());
+      await page.keyboard.press("Tab");
+      await page.waitForTimeout(300);          // it slides in
+      const link = await page.evaluate(() => {
+        const a = document.activeElement;
+        if (!a?.classList.contains("skip-link")) return null;
+        const r = a.getBoundingClientRect();
+        return { onScreen: r.top >= 0 && r.bottom <= window.innerHeight, href: a.getAttribute("href") };
+      });
+      ok(link, "the first tab stop is not the skip link");
+      ok(link.onScreen, "the skip link stays off-screen when focused");
+      const target = await page.evaluate((h2) => !!document.querySelector(h2), link.href);
+      ok(target, `the skip link points at ${link.href}, which does not exist`);
+    });
+
     await t(`${surface}: focus-visible paints a designed ring`, async () => {
       await page.keyboard.press("Tab");
       await page.keyboard.press("Tab");

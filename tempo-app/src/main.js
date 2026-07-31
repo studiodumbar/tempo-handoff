@@ -25,7 +25,7 @@ import {
   h, toast, showMenu, closeMenus, modKey, isMac, confirmAction, showShortcuts,
 } from "./ui/dom.js";
 import { iconButton } from "./ui/fields.js";
-import { appNav } from "./ui/appnav.js";
+import { appNav, skipLink } from "./ui/appnav.js";
 import { buildLibraryPanel } from "./ui/library.js";
 import { buildInspector } from "./ui/inspector.js";
 import { buildTimeline } from "./ui/timeline.js";
@@ -1064,8 +1064,16 @@ if (!store.loadAutosave()) {
 afterProjectLoad();
 
 const inspectorPanel = buildInspector(app);
+inspectorPanel.id = "inspector";
+inspectorPanel.tabIndex = -1;
 inspectorPanel.prepend(appNav("motion", SHORTCUTS));
-document.body.append(buildLibraryPanel(app), inspectorPanel, buildTimeline(app));
+const timelinePanel = buildTimeline(app);
+timelinePanel.id = "timeline";
+timelinePanel.tabIndex = -1;
+document.body.append(buildLibraryPanel(app), inspectorPanel, timelinePanel);
+// prepend, not append: the zoom chip is already on the body, and tab order is
+// DOM order — a skip link that is not first skips nothing
+document.body.prepend(skipLink("inspector", "Skip to the inspector"));
 
 // ---- the library drawer ------------------------------------------------------
 // Below 900px the library docks out over the stage instead of squeezing it.

@@ -217,16 +217,53 @@ const CLASS_SITES = [
   /classList\.(?:add|toggle|remove)\("([\w-]+)"/g,
   /querySelector(?:All)?\("\.([\w-]+)"/g,
   /closest\("\.([\w-]+)"/g,
+  /\bcls:\s*"([^"]*)"/g,          // iconButton(name, { cls: "play-btn" })
+  /\bicon\([^,)]+,\s*"([^"]*)"/g,   // icon(name, "spin lib-busy") — name may be a variable
 ];
+const usedClasses = new Set();
 for (const [f, src] of sources) {
   for (const re of CLASS_SITES) {
     for (const m of src.matchAll(re)) {
       const line = src.slice(0, m.index).split("\n").length;
       for (const c of m[1].trim().split(/\s+/)) {
         if (!c || c.includes("${")) continue;
+        usedClasses.add(c);
         if (!cssClasses.has(c)) fail(rel(f), line, `class "${c}" has no CSS rule`);
       }
     }
+  }
+  // a class built by interpolation still counts as used, but the literal half
+  // is all we can see: `class: \`btn ${variant}\`` proves "btn" is used
+  for (const m of src.matchAll(/class:\s*`([^`]*)`/g)) {
+    for (const c of m[1].split(/\$\{[^}]*\}|\s+/)) if (c) usedClasses.add(c);
+  }
+}
+for (const f of all.filter((x) => x.endsWith(".html"))) {
+  const src = await readFile(f, "utf8");
+  for (const m of src.matchAll(/class="([^"]+)"/g)) {
+    for (const c of m[1].split(/\s+/)) usedClasses.add(c);
+  }
+}
+
+// ...and the other direction: a rule nothing can reach is dead weight that
+// silently accumulates through every refactor.
+const DYNAMIC = new Set([
+  // set by class-name arithmetic the regexes above cannot see
+  "primary", "subtle", "ghost", "danger", "wide", "large", "on", "off",
+  "closed", "selected", "dragging", "lifting", "ghost", "instant", "busy",
+  "error", "info", "spin", "small", "long", "overridden", "compact", "in",
+  "out", "scrub", "pair", "with-prefix", "num", "select", "color", "disabled",
+  "major", "dim", "editing", "lib-grow", "lib-assets",
+]);
+for (const f of cssFiles) {
+  const src = decomment(await readFile(f, "utf8"));
+  const seen = new Map();
+  for (const m of src.matchAll(/\.(-?[A-Za-z_][\w-]*)/g)) {
+    if (!seen.has(m[1])) seen.set(m[1], src.slice(0, m.index).split("\n").length);
+  }
+  for (const [c, line] of seen) {
+    if (usedClasses.has(c) || DYNAMIC.has(c)) continue;
+    fail(rel(f), line, `rule ".${c}" is never used`);
   }
 }
 
