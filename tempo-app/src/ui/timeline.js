@@ -201,7 +201,7 @@ export function buildTimeline(app) {
                  top: `${rowTop}px`, height: `${LANE_H - 8}px` },
       },
         transW > 0.5 ? h("div", { class: "clip-trans", style: { width: `${transW}px` } }) : null,
-        // the exit flight: a trailing hatched zone on the last clip
+        // the exit flight: a trailing striped zone on the last clip
         (seg.end - seg.outroStart) * pps() > 0.5 ? h("div", {
           class: "clip-trans",
           style: { width: `${(seg.end - seg.outroStart) * pps()}px`,

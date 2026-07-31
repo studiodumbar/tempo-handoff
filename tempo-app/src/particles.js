@@ -1,5 +1,5 @@
 // The particle engine — ONE pool of particles shared by every mode AND every
-// asset. This is the fusion: a hatch-studio animation and a glb-braille model
+// asset. One pool, shared: a procedural animation and a sampled model
 // are the same thing here, a target layout for the pool. So "sphere becomes
 // hoodie" is not a special case — it is the ordinary transition.
 //
@@ -1094,7 +1094,7 @@ const FRAG = /* glsl */ `
                           // pass); 0: plain monochrome (direct view)
 
   void main() {
-    // a hatch dash: near-round when dim, widening horizontally as it brightens
+    // a shading dash: near-round when dim, widening horizontally as it brightens
     vec2 pc = gl_PointCoord - 0.5;
     float hw = mix(0.16, 0.46, clamp(vBri * 0.45, 0.0, 1.0));
     float ax = 1.0 - smoothstep(hw, hw + 0.18, abs(pc.x));

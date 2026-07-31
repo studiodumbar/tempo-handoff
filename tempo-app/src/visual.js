@@ -35,7 +35,20 @@ THREE.ColorManagement.enabled = false;
 // ---- config ------------------------------------------------------------------
 
 const STORAGE_KEY = "tempo.visual.v1";
+
+/* See the same shim in store.js: the old key is read once, written forward and
+   deleted, so it retires itself the first time the app opens. */
 const LEGACY_KEY = "hatchfusion.visual.v1";
+
+let migrated = false;
+
+function readLegacy() {
+  try {
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (raw) migrated = true;
+    return raw;
+  } catch { return null; }
+}
 
 function defaultConfig() {
   return {
@@ -59,7 +72,7 @@ let config = loadConfig();
 
 function loadConfig() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) ?? readLegacy();
     if (raw) {
       const p = JSON.parse(raw);
       if (p && p.version === 1) {
@@ -86,6 +99,19 @@ function loadConfig() {
     }
   } catch {}
   return defaultConfig();
+}
+
+/* Forward-write the migrated config, then retire the old key — synchronously,
+   and only once `config` exists. Doing it inside loadConfig() looked tidier and
+   was a bug twice over: saveConfig() touches a `let` declared below it, so it
+   threw into loadConfig's own catch and silently fell back to defaults; and
+   deleting the old key before anything had written the new one would have lost
+   the work outright if the tab closed inside the save debounce. */
+if (migrated) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {}
 }
 
 let saveTimer = 0;
@@ -519,7 +545,7 @@ const panel = document.getElementById("vpanel");
 panel.id = "vpanel";
 panel.tabIndex = -1;
 document.body.prepend(skipLink("vpanel", "Skip to controls"));
-panel.append(appNav("visual", SHORTCUTS));
+panel.append(appNav("visual"));
 const panelMain = h("div", { class: "v-panel-main" });
 const panelBody = h("div", { class: "panel-body" });
 const panelFoot = h("div", { class: "panel-foot" });

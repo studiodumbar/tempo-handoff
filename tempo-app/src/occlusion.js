@@ -1,5 +1,5 @@
 // Real solidity for the asset clouds. The particles are additive with no
-// depth test — that's what lets 16k dots layer into the hatch look — so on
+// depth test — that's what lets 16k dots layer into the shaded look — so on
 // their own you can see straight through a model: far-wall dots (and interior
 // surfaces that face the camera) shine through the front.
 //

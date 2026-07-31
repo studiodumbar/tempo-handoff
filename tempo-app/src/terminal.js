@@ -1,7 +1,7 @@
 // The terminal rasteriser — the braille & block vocabulary as a post-process.
-// This is the union of the hatch-studio and glb-braille passes: dithered dot
+// The glyph pass, used by both surfaces: dithered dot
 // threshold and ink/background colour from glb-braille, the block ramp from
-// hatch-studio (ON by default — everything here is particles, where a solid
+// coverage (ON by default — everything here is particles, where a solid
 // cell reads as a bright cluster, not banding).
 //
 // The 3D scene renders into a tiny offscreen target whose pixels ARE braille
@@ -115,7 +115,7 @@ const CELLIFY_FRAG = /* glsl */ `
         if (dy < 2) { if (dx == 0) q0 += g; else q1 += g; }
         else        { if (dx == 0) q2 += g; else q3 += g; }
         // dither > 0 makes dot *density* carry tone — useful when the pool
-        // sits densely on an asset surface; 0 is the classic hatch threshold
+        // sits densely on an asset surface; 0 is the classic line-shading threshold
         if (v.r > uDotThresh + uDither * bayer(sp)) bits |= (1 << (dy * 2 + dx));
       }
     }

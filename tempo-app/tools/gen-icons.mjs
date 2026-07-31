@@ -49,7 +49,6 @@ const FROM_HUGEICONS = {
   search: "Search01Icon",
   x: "Cancel01Icon",
   alert: "AlertCircleIcon",
-  keyboard: "KeyboardIcon",
   undo: "UndoIcon",
   redo: "RedoIcon",
   wave: "WaveIcon",

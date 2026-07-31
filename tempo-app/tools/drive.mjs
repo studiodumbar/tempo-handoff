@@ -130,9 +130,10 @@ for (const f of FORMATS) {
 }
 
 // -- the shortcut sheet --
-await page.click(".appnav .icon-btn");
+await page.click("#stage");
+await page.keyboard.press("?");
 await page.waitForTimeout(350);
-must(await page.isVisible(".sheet-card"), "the chrome opens the shortcut sheet", "sheet did not open");
+must(await page.isVisible(".sheet-card"), "? opens the shortcut sheet", "sheet did not open");
 await page.keyboard.press("Escape");
 await page.waitForTimeout(300);
 
@@ -273,9 +274,10 @@ must(await page.evaluate(() => !window.__app.store.session.playing), "pause stop
 }
 
 // -- the shortcut sheet on this surface too --
-await page.click(".appnav .icon-btn");
+await page.click("#stage");
+await page.keyboard.press("?");
 await page.waitForTimeout(350);
-must(await page.isVisible(".sheet-card"), "Motion's shortcut sheet opens", "sheet did not open");
+must(await page.isVisible(".sheet-card"), "? opens Motion's shortcut sheet", "sheet did not open");
 await page.keyboard.press("Escape");
 await page.waitForTimeout(300);
 

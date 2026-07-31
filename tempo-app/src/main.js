@@ -1,4 +1,4 @@
-// hatch·fusion studio — boot, the render loop, and every user action.
+// TEMPO · Motion — boot, the render loop, and every user action.
 //
 // The composition (comp) is the unit of truth: a fixed W × H × fps canvas the
 // viewport previews at any zoom and the exporter renders 1:1. The timeline
@@ -1075,7 +1075,7 @@ afterProjectLoad();
 const inspectorPanel = buildInspector(app);
 inspectorPanel.id = "inspector";
 inspectorPanel.tabIndex = -1;
-inspectorPanel.prepend(appNav("motion", SHORTCUTS));
+inspectorPanel.prepend(appNav("motion"));
 const timelinePanel = buildTimeline(app);
 timelinePanel.id = "timeline";
 timelinePanel.tabIndex = -1;

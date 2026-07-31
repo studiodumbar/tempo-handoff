@@ -281,3 +281,33 @@ legacy `hatchfusion.*` localStorage keys migrate (a session opened on "star
 emit" at a coarse grid with parameter overrides intact), the saved "Hatch
 showcase" project loads with its photo lane, and no asset loads at boot because
 that project uses none — all six sit `idle` until asked for.
+
+## Requested changes — 2026-07-31
+
+**Every "hatch" out of the app.** Fourteen references across `main.js`,
+`terminal.js`, `particles.js`, `occlusion.js`, `modes.js` and `timeline.js` —
+the old product name in a file header, predecessor-app names (`hatch-studio`,
+`glb-braille`), source-sketch names (`hatch_grid.py`, `hatch_states scene 1`),
+and the word used as a drawing term ("the hatch look", "a hatch dash", "a
+trailing hatched zone"), all rewritten to plain description.
+
+**The shortcuts button is gone** from the chrome on both surfaces. `?` still
+opens the sheet and is still listed inside it; the `keyboard` icon is out of
+the generated set.
+
+**A serious bug in my own work, found by the test that failed after it.** The
+eager legacy-key migration I wrote for this change was wrong twice over:
+
+1. `saveConfig()` was called from inside `loadConfig()`, and it touches a `let`
+   declared below — a TDZ ReferenceError, swallowed by `loadConfig`'s own empty
+   `catch`, so any saved Visual config silently fell back to defaults. The
+   existing "config survives a reload" test caught it immediately.
+2. `readLegacy()` deleted the old key before anything had written the new one.
+   The forward-write was on a 400ms debounce, so a tab closed inside that
+   window would have taken the work with it.
+
+Both fixed: the forward-write is synchronous and happens only once `config`
+exists, then the old key is retired. A new `migration` group tests all three
+properties — the old config is read, it is written forward, the old key is
+gone — including a read taken with no wait at all, the way a tab closed
+immediately would see it.

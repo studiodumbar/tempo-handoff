@@ -10,9 +10,21 @@
 import { MODE_BY_KEY } from "./modes.js";
 
 const STORAGE_KEY = "tempo.project.v1";
-// projects autosaved under the old name still open — read once, then write
-// forward under the new key
+
+/* The only thing left in the codebase carrying the previous product name, and
+   it is a compatibility shim rather than a mention: work autosaved under the
+   old key would be lost without it. It migrates ONCE — read, write forward,
+   delete — so it clears itself out of a browser the first time the app opens.
+   Safe to delete this and readLegacy() once everyone has opened the app. */
 const LEGACY_KEY = "hatchfusion.project.v1";
+
+function readLegacy(store) {
+  try {
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (raw) store._migrated = true;
+    return raw;
+  } catch { return null; }
+}
 
 let _id = Math.floor(Date.now() % 1e7);
 export const uid = () => `id${(_id++).toString(36)}`;
@@ -295,11 +307,19 @@ class Store {
 
   loadAutosave() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY);
+      const raw = localStorage.getItem(STORAGE_KEY) ?? readLegacy(this);
       if (!raw) return false;
       const p = JSON.parse(raw);
       if (p && p.version === 1 && Array.isArray(p.clips)) {
         this.project = normalizeProject(p);
+        // forward-write SYNCHRONOUSLY before retiring the old key: the save
+        // debounce is 400ms, and a tab closed inside it would take the work
+        if (this._migrated) {
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.project));
+            localStorage.removeItem(LEGACY_KEY);
+          } catch {}
+        }
         return true;
       }
     } catch {}

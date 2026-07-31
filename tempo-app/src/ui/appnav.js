@@ -1,10 +1,9 @@
-// The app chrome — the TEMPO wordmark, the mode switch and the way into the
-// shortcut sheet, on one row at the top of the panel. Visual ⇄ Motion are two
-// modes of one tool, so the switch lives in the chrome and never over the
-// canvas. The active mode is inert text; the other navigates.
+// The app chrome — the TEMPO wordmark and the mode switch, on one row at the
+// top of the panel. Visual ⇄ Motion are two modes of one tool, so the switch
+// lives in the chrome and never over the canvas. The active mode is inert
+// text; the other navigates.
 
-import { h, showShortcuts } from "./dom.js";
-import { iconButton } from "./fields.js";
+import { h } from "./dom.js";
 import { wordmark } from "./wordmark.js";
 
 const MODES = [
@@ -22,23 +21,13 @@ export function skipLink(targetId, label) {
   return h("a", { class: "skip-link", href: `#${targetId}` }, label);
 }
 
-/**
- * @param {string} active
- * @param {Array<{title: string, keys: Array<[string, string]>}>} shortcuts
- */
-export function appNav(active, shortcuts) {
+/** @param {string} active */
+export function appNav(active) {
   return h("header", { class: "appnav" },
     wordmark(),
     h("nav", { class: "modeswitch", "aria-label": "Mode" },
       ...MODES.map((m) =>
         m.id === active
           ? h("span", { class: "mode-btn on", "aria-current": "page" }, m.label)
-          : h("a", { class: "mode-btn", href: m.href }, m.label))),
-    // The shortcuts existed but only in the README. A control in the chrome is
-    // how anyone finds out they are there at all.
-    iconButton("keyboard", {
-      title: "Shortcuts — ?",
-      cls: "small",
-      onClick: () => showShortcuts(shortcuts),
-    }));
+          : h("a", { class: "mode-btn", href: m.href }, m.label))));
 }

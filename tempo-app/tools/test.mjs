@@ -703,20 +703,15 @@ if (run("motion")) {
     await page.waitForTimeout(300);
   });
 
-  await t("the shortcut sheet opens from the chrome and from ?", async () => {
-    await page.click(".appnav .icon-btn");
+  await t("the shortcut sheet opens on ? and closes on Escape", async () => {
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press("?");
     await page.waitForTimeout(250);
     const rows = await page.evaluate(() => document.querySelectorAll(".sheet-row").length);
     ok(rows > 10, `sheet listed only ${rows} shortcuts`);
     await page.keyboard.press("Escape");
     await page.waitForTimeout(250);
     eq(await page.evaluate(() => !!document.querySelector(".sheet-card")), false);
-    await page.evaluate(() => document.body.focus());
-    await page.keyboard.press("?");
-    await page.waitForTimeout(250);
-    eq(await page.evaluate(() => !!document.querySelector(".sheet-card")), true);
-    await page.keyboard.press("Escape");
-    await page.waitForTimeout(250);
   });
 
   await t("boots with no console errors", async () => {
@@ -724,6 +719,89 @@ if (run("motion")) {
   });
 
   await ctx.close();
+}
+
+// ============================================================ migration
+// The only string in the codebase carrying the previous product name is the old
+// localStorage key, and it is there so nobody loses work. If it does not
+// actually migrate, it is worse than useless — it is a silent data loss.
+if (run("migration")) {
+  group = "migration";
+
+  await t("Visual reads a config saved under the old key, then retires it", async () => {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/index.html`, { waitUntil: "load" });
+    await page.evaluate(() => {
+      localStorage.clear();
+      localStorage.setItem("hatchfusion.visual.v1", JSON.stringify({
+        version: 1, comp: { width: 640, height: 480 }, target: "mode:sphere",
+        params: {}, scene: {}, export: {},
+      }));
+    });
+    await page.reload({ waitUntil: "load" });
+    await page.waitForTimeout(1500);
+    const state = await page.evaluate(() => ({
+      width: window.__visual.config.comp.width,
+      target: window.__visual.config.target,
+      newKey: JSON.parse(localStorage.getItem("tempo.visual.v1") || "null")?.comp?.width,
+      oldKey: localStorage.getItem("hatchfusion.visual.v1"),
+    }));
+    eq(state.width, 640, "the old config was not read:");
+    eq(state.target, "mode:sphere", "the old target was not read:");
+    eq(state.newKey, 640, "it was not written forward:");
+    eq(state.oldKey, null, "the old key was not retired:");
+    await ctx.close();
+  });
+
+  await t("Motion reads a project saved under the old key, then retires it", async () => {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/editor.html`, { waitUntil: "load" });
+    const project = await page.evaluate(() => {
+      const p = window.__app.store.project;
+      p.name = "Carried over";
+      return JSON.stringify(p);
+    });
+    await page.evaluate((json) => {
+      localStorage.clear();
+      localStorage.setItem("hatchfusion.project.v1", json);
+    }, project);
+    await page.reload({ waitUntil: "load" });
+    await page.waitForTimeout(1800);
+    const state = await page.evaluate(() => ({
+      name: window.__app.store.project.name,
+      clips: window.__app.store.project.clips.length,
+      newKey: JSON.parse(localStorage.getItem("tempo.project.v1") || "null")?.name,
+      oldKey: localStorage.getItem("hatchfusion.project.v1"),
+    }));
+    eq(state.name, "Carried over", "the old project was not read:");
+    ok(state.clips > 0, "the clips did not come across");
+    eq(state.newKey, "Carried over", "it was not written forward:");
+    eq(state.oldKey, null, "the old key was not retired:");
+    await ctx.close();
+  });
+
+  await t("the forward-write happens before the old key is dropped", async () => {
+    // close the tab immediately after load — inside the save debounce — and
+    // the work must still be there
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/index.html`, { waitUntil: "load" });
+    await page.evaluate(() => {
+      localStorage.clear();
+      localStorage.setItem("hatchfusion.visual.v1", JSON.stringify({
+        version: 1, comp: { width: 333, height: 333 }, target: "mode:sphere",
+        params: {}, scene: {}, export: {},
+      }));
+    });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    // no waiting: read straight away, the way a tab closed at once would
+    const written = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("tempo.visual.v1") || "null")?.comp?.width);
+    eq(written, 333, "nothing was written forward before the debounce:");
+    await ctx.close();
+  });
 }
 
 // ============================================================ deployed

@@ -109,7 +109,7 @@ class Layout {
   }
 }
 
-/** Unit-sphere lat/long hatch layout (the signature body). */
+/** Unit-sphere lat/long shading layout (the signature body). */
 function sphereLayout(N, briVal = 1.0) {
   const L = new Layout();
   const NLAT = 44;
@@ -155,7 +155,7 @@ function roundedRectWalk(hw, hh, rc, n, cb) {
   }
 }
 
-/** The measured reference table (hatch_grid.py): visit every dot slot as
+/** The measured reference table: visit every dot slot as
     cb(x, y, ruleIndex, alongFraction). 12 rules: 8 rows then 4 columns. */
 function eachTableDot(P, cb) {
   const H_YS = [0.1659, 0.1846, 0.3793, 0.3979, 0.5932, 0.6113, 0.8064, 0.8267];
@@ -183,7 +183,7 @@ function eachTableDot(P, cb) {
 // ===========================================================================
 export const MODES = [
 
-  // -- 0 · SPHERE — the hatched idle sphere (hatch_states scene 1) ----------
+  // -- 0 · SPHERE — the shaded idle sphere -----------------------------------
   {
     key: "sphere", label: "sphere", statusName: "IDLE", id: 0, regen: [],
     params: {
@@ -200,7 +200,7 @@ export const MODES = [
     },
   },
 
-  // -- 1 · PULSE — pole pulse loading (hatch_loading scene 1) ---------------
+  // -- 1 · PULSE — pole pulse loading ----------------------------------------
   {
     key: "pulse", label: "pulse", statusName: "PROCESSING", id: 2, regen: [],
     params: {
@@ -289,7 +289,7 @@ export const MODES = [
     },
   },
 
-  // -- 5 · TABLE — the measured dotted table (hatch_grid's faithful grid) ---
+  // -- 5 · TABLE — the measured dotted table, faithful to its grid -----------
   {
     key: "table", label: "table", statusName: "DEFINING", id: 1, regen: ["gap","width"],
     params: {
