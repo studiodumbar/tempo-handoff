@@ -2566,7 +2566,7 @@ export const MODE_BY_KEY = Object.fromEntries(MODES.map((m) => [m.key, m]));
    than Assets, which would name them as something they are not. */
 export const FEATURED = [
   "star-emit", "helix-train", "zoom-out-blocks", "compare-relay",
-  "find-orbits", "arrange-crystal", "sonar",
+  "find-orbits", "sonar",
 ];
 
 /** The featured modes, in the order they are listed above. */
