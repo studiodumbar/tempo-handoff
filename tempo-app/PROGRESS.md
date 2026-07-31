@@ -267,3 +267,17 @@ state in `shots/final/`. `HANDOVER.md` is current.
 | Long tasks | 5 (max 188 ms) → **1** | 5 (max 218 ms) → **2** |
 | Retained heap | 141.1 → **17.4 MB** | 132.6 → **57.5 MB** |
 | Sustained fps | 120.1 → 120.1 | 120.1 → 120.2 |
+
+## Post-handover — 2026-07-31
+
+Opened the app in a real browser rather than only in the harness, which caught
+one thing every screenshot had been cropping out: **the browser tab still read
+"hatch visual" / "hatch motion".** The audit had flagged the page titles and
+the wordmark work fixed the chrome but not the `<title>`. They are
+`TEMPO · Visual` and `TEMPO · Motion`, with a test on each.
+
+Also confirmed against real saved work rather than the starter project: the
+legacy `hatchfusion.*` localStorage keys migrate (a session opened on "star
+emit" at a coarse grid with parameter overrides intact), the saved "Hatch
+showcase" project loads with its photo lane, and no asset loads at boot because
+that project uses none — all six sit `idle` until asked for.

@@ -110,6 +110,16 @@ if (run("system")) {
   });
 
   await ctx.close();
+
+  for (const [name, url] of [["Visual", "/index.html"], ["Motion", "/editor.html"]]) {
+    const c2 = await browser.newContext();
+    const p2 = await c2.newPage();
+    await p2.goto(BASE + url, { waitUntil: "load" });
+    await t(`${name}: the browser tab names the product`, async () => {
+      eq(await p2.title(), `TEMPO · ${name}`);
+    });
+    await c2.close();
+  }
 }
 
 // ============================================================ a11y
