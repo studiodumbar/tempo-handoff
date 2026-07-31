@@ -782,6 +782,30 @@ if (run("migration")) {
     await ctx.close();
   });
 
+  await t("a superseded old key is dropped even when nothing reads it", async () => {
+    for (const [name, url, oldKey, newKey, blob] of [
+      ["Visual", "/index.html", "hatchfusion.visual.v1", "tempo.visual.v1",
+        { version: 1, comp: { width: 800, height: 800 }, target: "mode:sphere", params: {}, scene: {}, export: {} }],
+    ]) {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      await page.goto(BASE + url, { waitUntil: "load" });
+      await page.evaluate(([o, n, b]) => {
+        localStorage.clear();
+        localStorage.setItem(n, JSON.stringify(b));   // already migrated
+        localStorage.setItem(o, JSON.stringify(b));   // stale leftover
+      }, [oldKey, newKey, blob]);
+      await page.reload({ waitUntil: "load" });
+      await page.waitForTimeout(1200);
+      const left = await page.evaluate((o) => localStorage.getItem(o), oldKey);
+      eq(left, null, `${name} kept the stale old key:`);
+      const kept = await page.evaluate((n) =>
+        JSON.parse(localStorage.getItem(n)).comp.width, newKey);
+      eq(kept, 800, `${name} lost the current config:`);
+      await ctx.close();
+    }
+  });
+
   await t("the forward-write happens before the old key is dropped", async () => {
     // close the tab immediately after load — inside the save debounce — and
     // the work must still be there

@@ -311,3 +311,13 @@ exists, then the old key is retired. A new `migration` group tests all three
 properties — the old config is read, it is written forward, the old key is
 gone — including a read taken with no wait at all, the way a tab closed
 immediately would see it.
+
+A browser that had already migrated kept the stale old key forever, because
+nothing read from it any more. It is dropped now whenever the new key holds the
+data, so the shim clears itself either way. Verified on the real browser: both
+`hatchfusion.visual.v1` and `hatchfusion.project.v1` are gone from localhost.
+
+One key on that origin is **not** ours: `hatchfusion.ws`. Nothing in this
+codebase writes it — grepped the whole repo — so it belongs to one of the
+predecessor apps that used to be served on the same port. Left alone and
+reported rather than deleted.

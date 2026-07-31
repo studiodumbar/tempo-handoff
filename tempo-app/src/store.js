@@ -26,6 +26,15 @@ function readLegacy(store) {
   } catch { return null; }
 }
 
+/** Once the new key holds the project, the old one is dead weight — drop it
+    even though nothing read from it this time. Otherwise a browser that
+    migrated before keeps the stale entry forever. */
+function retireLegacyIfSuperseded() {
+  try {
+    if (localStorage.getItem(STORAGE_KEY)) localStorage.removeItem(LEGACY_KEY);
+  } catch {}
+}
+
 let _id = Math.floor(Date.now() % 1e7);
 export const uid = () => `id${(_id++).toString(36)}`;
 
@@ -319,6 +328,8 @@ class Store {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(this.project));
             localStorage.removeItem(LEGACY_KEY);
           } catch {}
+        } else {
+          retireLegacyIfSuperseded();
         }
         return true;
       }

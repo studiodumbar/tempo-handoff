@@ -50,6 +50,15 @@ function readLegacy() {
   } catch { return null; }
 }
 
+/** Once the new key holds the config, the old one is dead weight — drop it
+    even though nothing read from it this time. Otherwise a browser that
+    migrated before keeps the stale entry forever. */
+function retireLegacyIfSuperseded() {
+  try {
+    if (localStorage.getItem(STORAGE_KEY)) localStorage.removeItem(LEGACY_KEY);
+  } catch {}
+}
+
 function defaultConfig() {
   return {
     version: 1,
@@ -112,6 +121,8 @@ if (migrated) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
     localStorage.removeItem(LEGACY_KEY);
   } catch {}
+} else {
+  retireLegacyIfSuperseded();
 }
 
 let saveTimer = 0;
