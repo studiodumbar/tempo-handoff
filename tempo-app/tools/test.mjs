@@ -806,6 +806,37 @@ if (run("migration")) {
     }
   });
 
+  await t("a saved target that no longer exists recovers instead of hanging", async () => {
+    // session imports live in memory only, so a config pointing at one is dead
+    // the moment the tab reloads — found live on production, where it left the
+    // app on "Loading…" over a blank canvas forever
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/index.html`, { waitUntil: "load" });
+    await page.evaluate(() => {
+      localStorage.clear();
+      localStorage.setItem("tempo.visual.v1", JSON.stringify({
+        version: 1, comp: { width: 1080, height: 1080 },
+        target: "asset:import-aa",          // a session import, long gone
+        params: {}, scene: {}, export: {},
+      }));
+    });
+    await page.reload({ waitUntil: "load" });
+    await page.waitForTimeout(3000);
+
+    const state = await page.evaluate(() => ({
+      target: window.__visual.config.target,
+      source: document.querySelector(".source-name").textContent,
+      marks: (window.__visual.svg().match(/<rect|<circle/g) || []).length,
+      toast: [...document.querySelectorAll(".toast")].map((t2) => t2.textContent).join(" | "),
+    }));
+    eq(state.target, "asset:plate", "it did not fall back:");
+    ok(!/Loading/.test(state.source), `the picker still reads "${state.source}"`);
+    ok(state.marks > 50, `the stage drew only ${state.marks} marks`);
+    ok(/import/i.test(state.toast), `nothing explained it — toasts: "${state.toast}"`);
+    await ctx.close();
+  });
+
   await t("the forward-write happens before the old key is dropped", async () => {
     // close the tab immediately after load — inside the save debounce — and
     // the work must still be there

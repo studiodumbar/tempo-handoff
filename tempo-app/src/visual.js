@@ -216,16 +216,7 @@ async function ensureAsset(key) {
     // shipped in this deployment. Fall back to the plate so there is always
     // something on screen, and say why.
     if (config.target === `asset:${key}`) {
-      await ensureDefaultPlate();
-      if (assetLib.get(DEFAULT_PLATE.key)) {
-        config.target = `asset:${DEFAULT_PLATE.key}`;
-        loadedPairKey = "";
-        saveConfig();
-        refreshLabel();
-        buildPanel();
-      }
-      toast(`${def.label} is not available here — opened the plate instead`,
-            { kind: "error", duration: 4200 });
+      await fallBackToPlate(`${def.label} is not available here — opened the plate instead`);
       return;
     }
     toast(`Could not load ${def.label} — ${err.message || err}`, { kind: "error" });
@@ -282,7 +273,29 @@ async function ensureShippedImage(key) {
 function ensureTarget(key) {
   if (key === DEFAULT_PLATE.key) return ensureDefaultPlate();
   if (SHIPPED_IMAGES.some((d) => d.key === key)) return ensureShippedImage(key);
-  return ensureAsset(key);
+  if (assetLib.has(key)) return ensureAsset(key);
+  if (ASSET_DEFS.some((d) => d.key === key)) return ensureAsset(key);
+
+  /* A key nothing can resolve. In practice this is a session import — those
+     live in memory only, so a saved target pointing at one is dead the moment
+     the tab reloads. It used to leave the app on "Loading…" over a blank
+     canvas forever, with nothing said: the very first thing anyone with a
+     previous session saw. Fall back to the plate and explain, exactly as a
+     failed load does. */
+  return fallBackToPlate(
+    "That image was an import — those last for one session. Opened the plate instead.");
+}
+
+/** The one recovery path: put something on screen and say what happened. */
+async function fallBackToPlate(message) {
+  await ensureDefaultPlate();
+  if (!assetLib.get(DEFAULT_PLATE.key)) return;
+  config.target = `asset:${DEFAULT_PLATE.key}`;
+  loadedPairKey = "";
+  saveConfig();
+  refreshLabel();
+  buildPanel();
+  toast(message, { kind: "error", duration: 5200 });
 }
 
 async function importFile(file) {

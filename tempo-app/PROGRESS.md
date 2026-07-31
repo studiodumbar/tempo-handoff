@@ -321,3 +321,23 @@ One key on that origin is **not** ours: `hatchfusion.ws`. Nothing in this
 codebase writes it — grepped the whole repo — so it belongs to one of the
 predecessor apps that used to be served on the same port. Left alone and
 reported rather than deleted.
+
+## Production — 2026-07-31
+
+Deployed to `hatch-fusion.vercel.app`. Opening the live site immediately found a
+bug no local test could have: **that origin's saved config pointed at
+`asset:import-aa`, a session import.** Imports live in memory only, so a saved
+target naming one is dead the moment the tab reloads — and Visual sat on
+"Loading…" over a blank canvas forever, saying nothing. The pre-rewrite app had
+the same hole; it is just that nobody had opened production with an old session
+and watched.
+
+`ensureTarget()` now recognises a key it cannot resolve by any route and falls
+back to the plate with an explanation, sharing one `fallBackToPlate()` recovery
+with the load-failure path that already did this. Covered by a test that seeds
+exactly that config.
+
+Verified live on the deployment: Visual falls back with "mug is not available
+here — opened the plate instead", and Motion's library shows hoodie and mug in
+red marked "failed" with retry — the models are `.vercelignore`d, so that is
+the production reality working as designed.
