@@ -370,17 +370,62 @@ if (run("visual")) {
     await page.waitForTimeout(200);
   });
 
-  await t("3D controls appear only for a 3D source", async () => {
+  await t("depth controls appear only for a 3D source", async () => {
+    const hasSolid = () => page.evaluate(() =>
+      [...document.querySelectorAll("#v-camera .field-prefix")]
+        .some((e) => e.textContent === "solid"));
     await page.evaluate(() => window.__visual.setTarget("asset:plate"));
     await page.waitForTimeout(400);
-    eq(await page.evaluate(() => !!document.querySelector("#v-3d")), false,
-      "3D section shown for an image:");
+    eq(await hasSolid(), false, "occlusion controls shown for an image:");
+    // the camera itself stays, because any source can be orbited
+    eq(await page.evaluate(() => !!document.querySelector("#v-camera")), true,
+      "camera section missing for an image:");
     await page.evaluate(() => window.__visual.setTarget("asset:mug"));
     await page.waitForTimeout(900);
-    eq(await page.evaluate(() => !!document.querySelector("#v-3d")), true,
-      "3D section missing for a model:");
+    eq(await hasSolid(), true, "occlusion controls missing for a model:");
     await page.evaluate(() => window.__visual.setTarget("asset:plate"));
     await page.waitForTimeout(400);
+  });
+
+  await t("the reset-view chip appears only once the view has moved", async () => {
+    const shown = () => page.evaluate(() => {
+      const c = document.querySelector(".stage-chip");
+      return c ? !c.hidden : false;
+    });
+    eq(await shown(), false, "chip visible on an untouched view:");
+    await page.evaluate(() => {
+      window.__visual.orbitTo(1.2, 0.4);
+    });
+    await page.waitForTimeout(300);
+    eq(await shown(), true, "chip missing after the view moved:");
+    await page.click(".stage-chip");
+    await page.waitForTimeout(300);
+    eq(await shown(), false, "chip stayed after reset:");
+  });
+
+  await t("the source picker keeps its rows inside its own card", async () => {
+    await page.click(".source-btn");
+    await page.waitForTimeout(400);
+    // Rows scrolled out of view legitimately sit outside the card's box; what
+    // matters is that the card CLIPS them. The bug was an uncapped list inside
+    // a capped menu with no overflow, so the rows painted over the panel.
+    const box = await page.evaluate(() => {
+      const menu = document.querySelector(".menu");
+      const scroller = menu.querySelector(".menu-scroll");
+      return {
+        overflow: getComputedStyle(menu).overflow,
+        menuH: Math.round(menu.clientHeight),
+        scrollerH: Math.round(scroller.clientHeight),
+        content: Math.round(scroller.scrollHeight),
+        fitsViewport: menu.getBoundingClientRect().bottom <= window.innerHeight + 1,
+      };
+    });
+    eq(box.overflow, "hidden", "the menu does not clip:");
+    ok(box.scrollerH <= box.menuH, `list is ${box.scrollerH}px inside a ${box.menuH}px card`);
+    ok(box.content > box.scrollerH, "the list is not actually scrolling");
+    ok(box.fitsViewport, "the menu hangs off the bottom of the window");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
   });
 
   await t("the style switch asks before wiping tuning", async () => {

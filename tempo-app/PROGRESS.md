@@ -137,3 +137,27 @@ same footer pattern as Visual, with the same ⌘E and the same meta line.
 
 The last three `.note` paragraphs in the app are gone; a test now fails on any
 panel text over six words.
+
+## Loop 3 — critique and fixes, 2026-07-31
+
+1. **The source picker spilled out of its own card.** The menu was capped at
+   420 px but the list inside it was not, and menus did not clip — so from
+   "zoom" down, every row painted on top of the panel behind. Caught by
+   screenshotting the picker as a state. The menu is a clipping flex column
+   now and the list shrinks inside it. The test asserts the card clips and the
+   list actually scrolls, rather than measuring rects (rows scrolled out of
+   view legitimately sit outside the box).
+2. **Reset view was unreachable for an image.** Putting the whole 3D section
+   behind "is this a model" took the camera controls with it, but any source
+   can be orbited — the canvas drag is bound unconditionally. The section is
+   **Camera** now and always present with field of view and Reset view; only
+   the depth controls (solidity, bias) are model-only. Parity restored without
+   losing the disclosure.
+3. **Nothing said the canvas orbits, or offered a way back.** A Reset view chip
+   sits on the stage and appears only once the view has actually moved — the
+   affordance shows up exactly when it means something. It writes to the DOM
+   only when the state flips, so it costs nothing per frame.
+4. The shipped plate is labelled "long sleeve" in Visual's picker too; it read
+   "longsleeve" beside a model called "long sleeve".
+5. The menu's search row takes the focus ring as a row, not as a bare input
+   floating inside it.

@@ -199,12 +199,14 @@ async function ensureAsset(key) {
 // appear in the picker from the first frame — but the pixels only arrive when
 // one is actually chosen. longsleeve.png alone is 2.7 MB; paying that at boot
 // for an image most sessions never open is the wrong trade.
-const SHIPPED_IMAGES = [{ key: "longsleeve", url: "./plates/longsleeve.png" }];
+const SHIPPED_IMAGES = [
+  { key: "longsleeve", label: "long sleeve", url: "./plates/longsleeve.png" },
+];
 
 function registerShippedImages() {
   for (const def of SHIPPED_IMAGES) {
     if (!imports.some((i) => i.key === def.key)) {
-      imports.push({ key: def.key, label: def.key, url: def.url });
+      imports.push({ key: def.key, label: def.label ?? def.key, url: def.url });
     }
   }
 }
@@ -223,7 +225,7 @@ async function ensureShippedImage(key) {
                           { type: "image/png" });
     const mode = await imageModeFromFile(file, engine.N);
     mode.key = `asset:${key}`;
-    mode.label = key;
+    mode.label = def.label ?? key;
     assetLib.set(key, mode);
     loadedPairKey = "";
     refreshLabel();
@@ -484,6 +486,7 @@ function frame() {
   }
 
   controls.update();
+  syncResetChip();
   renderFrame(sceneTime(clock), phase, dt);
 }
 
@@ -778,26 +781,26 @@ function canvasSection() {
   ], { id: "v-canvas" })];
 }
 
-/** Camera and depth. Present only when the source is a model — for an image
-    every control in here except the field of view does nothing, and a dead
-    control is worse than a missing one. */
+/** Camera. Always present — any source can be orbited, so any source can need
+    its view back — but the depth controls belong to models, where they do
+    something. Collapsed: most sessions never open it. */
 function spatialSection() {
-  if (sourceKind() !== "model") return [];
-  return [section("3D", [
+  const model = sourceKind() === "model";
+  return [section("Camera", [
     grid2(
-      sceneNum("fov", { min: 15, max: 100, step: 1, unit: "°", prefix: { icon: "camera", tip: "Field of view" } }),
-      sceneNum("solidity", { min: 0, max: 1, step: 0.01, prefix: { text: "solid", tip: "How much a model hides its own far side" } }),
-    ),
-    grid2(
-      sceneNum("occBias", { min: 0.01, max: 0.3, step: 0.005, prefix: { text: "bias", tip: "Slack before a mark counts as hidden" } }),
+      sceneNum("fov", { min: 15, max: 100, step: 1, unit: "\u00b0", prefix: { text: "lens", tip: "Field of view" } }),
       null,
     ),
+    ...(model ? [grid2(
+      sceneNum("solidity", { min: 0, max: 1, step: 0.01, prefix: { text: "solid", tip: "How much a model hides its own far side" } }),
+      sceneNum("occBias", { min: 0.01, max: 0.3, step: 0.005, prefix: { text: "bias", tip: "Slack before a mark counts as hidden" } }),
+    )] : []),
     h("div", { class: "btn-row" },
       button("Reset view", {
         iconName: "fit", variant: "subtle", wide: true,
-        title: "Front-on, recentred — R", onClick: resetView,
+        title: "Front-on, recentred \u2014 R", onClick: resetView,
       })),
-  ], { id: "v-3d", collapsed: true })];
+  ], { id: "v-camera", collapsed: true })];
 }
 
 // ---- export ------------------------------------------------------------------------
@@ -1059,10 +1062,32 @@ function tunedAwayFromHouse() {
   });
 }
 
+const HOME = new THREE.Vector3(0, 0, 3.55);
+
 function resetView() {
-  camera.position.set(0, 0, 3.55);
+  camera.position.copy(HOME);
   controls.target.set(0, 0, 0);
   controls.update();
+}
+
+/* Dragging the canvas orbits, and nothing said so or offered a way back
+   except a button inside a collapsed section. This chip appears on the stage
+   only once the view HAS moved — the affordance shows up exactly when it
+   means something, and disappears when it does not. */
+const resetChip = button("Reset view", {
+  iconName: "fit", variant: "subtle",
+  title: "Front-on, recentred \u2014 R",
+  onClick: () => { resetView(); syncResetChip(); },
+});
+resetChip.classList.add("stage-chip");
+resetChip.hidden = true;
+stage.append(resetChip);
+
+function syncResetChip() {
+  const moved = camera.position.distanceTo(HOME) > 0.02
+    || controls.target.lengthSq() > 4e-4;
+  if (resetChip.hidden === !moved) return;      // no DOM write unless it flips
+  resetChip.hidden = !moved;
 }
 
 // ---- keyboard ----------------------------------------------------------------------
@@ -1141,6 +1166,8 @@ window.addEventListener("drop", async (e) => {
 window.__visual = {
   config, engine, renderer, terminal,
   setTarget, buildPanel,
+  // move the camera off home without synthesising a drag
+  orbitTo: (x, y) => { camera.position.set(x, y, 3.2); controls.update(); },
   save: () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); } catch {} },
   // export hooks, so the suite validates the same bytes a user downloads
   pngBlob,

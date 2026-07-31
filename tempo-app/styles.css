@@ -217,6 +217,20 @@ body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select: no
   pointer-events: none;
 }
 
+/* a control that lives on the stage, bottom-right, out of the picture's way */
+.stage-chip {
+  position: absolute;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--elev-3);
+  color: var(--text-dim);
+}
+@media (hover: hover) and (pointer: fine) {
+  .stage-chip:hover { background: var(--field-hover); color: var(--text); }
+}
+
 .stage-label {
   position: absolute;
   top: calc(var(--sp-7) * -1);
@@ -1485,6 +1499,11 @@ button:disabled .icon { opacity: 0.5; }
 .menu {
   position: fixed;
   z-index: 100;
+  /* a column that clips: a capped menu with an uncapped list inside it spilled
+     its rows out of the card and over the panel behind */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: var(--sp-2);
   background: #242427;
   border: 1px solid var(--panel-border);
@@ -1520,7 +1539,11 @@ button:disabled .icon { opacity: 0.5; }
 .menu-sep { height: 1px; margin: var(--sp-2) var(--sp-3); background: var(--panel-border); }
 .menu-sub { color: var(--text-faint); font-size: var(--fs-small); flex: none; }
 .menu-plain { display: contents; }
-.menu-scroll { overscroll-behavior: contain; }
+.menu-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
 .menu-heading {
   padding: var(--sp-4) var(--sp-4) var(--sp-2);
   color: var(--text-faint);
@@ -1531,6 +1554,7 @@ button:disabled .icon { opacity: 0.5; }
 }
 .menu-heading:first-child { padding-top: var(--sp-2); }
 .menu-search {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -1539,6 +1563,13 @@ button:disabled .icon { opacity: 0.5; }
   padding: 0 var(--sp-4);
   border-bottom: 1px solid var(--panel-border);
 }
+/* the whole row is the field, so the ring belongs to the row */
+.menu-search:has(:focus-visible) {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: calc(var(--focus-gap) * -1);
+  border-radius: var(--r-2);
+}
+.menu-search-input:focus-visible { outline: none; }
 .menu-search .icon { width: var(--icon-s); height: var(--icon-s); color: var(--text-faint); }
 .menu-search-input { flex: 1; min-width: 0; }
 .menu-search-input::placeholder { color: var(--text-faint); }

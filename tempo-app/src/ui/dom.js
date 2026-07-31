@@ -125,7 +125,7 @@ export function showMenu(items, anchor, { minWidth = 148, align = "left", search
   // the highlighted row, declared up here because the filter resets it and
   // the filter runs during setup
   let hot = -1;
-  const scroller = h("div", { class: search ? "menu-scroll" : "menu-plain" });
+  const scroller = h("div", { class: "menu-scroll" });
   const rowsFor = [];          // [{ el, text, kind }] for filtering
 
   let searchInput = null;
@@ -213,8 +213,9 @@ export function showMenu(items, anchor, { minWidth = 148, align = "left", search
   const maxH = Math.min(420, window.innerHeight - MARGIN * 2);
   if (menu.offsetHeight > maxH) {
     menu.style.maxHeight = `${maxH}px`;
-    if (search) scroller.style.overflowY = "auto";
-    else menu.style.overflowY = "auto";
+    // the menu is a flex column, so capping it makes the list shrink and
+    // scroll rather than spilling past the card
+    scroller.style.overflowY = "auto";
   }
 
   const mr = menu.getBoundingClientRect();
