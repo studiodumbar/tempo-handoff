@@ -308,6 +308,10 @@ export function drive(engine, clips, T) {
   if (!loc) return true;                       // empty timeline: leave engine be
   const { seg, segs, phase } = loc;
   engine.fade = loc.lead ? 1 : 0;              // the lead-in holds black
+  // seconds into this clip, counting from the START of its arrival flight —
+  // a cell-reveal photo paces off this, so its build can run alongside the
+  // transition instead of waiting for the dots to land first
+  engine.clipT = Math.max(0, loc.t - seg.start);
   const cur = clipRuntime(seg.clip, engine.N);
   const prevClip = seg.index > 0 ? segs[seg.index - 1].clip : seg.clip;
   let prev = seg.index > 0 ? clipRuntime(prevClip, engine.N) : cur;

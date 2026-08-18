@@ -367,25 +367,20 @@ export function grid2(...fields) {
     ...fields.map((f) => (f == null ? h("span") : (f.el ?? f))));
 }
 
-const secState = (id) => {
-  try { return localStorage.getItem(`tempo.sec.${id}`); } catch { return null; }
-};
-
 let secSeq = 0;
 
 /**
  * A collapsible section. The header is a real <button> — it was a <div> with a
  * click handler, which put the collapse control of every section on every
- * surface outside the tab order entirely. Open/closed is remembered per id;
- * pass collapsed: true for advanced sections that start closed.
+ * surface outside the tab order entirely. Pass collapsed: true for advanced
+ * sections that start closed.
  *
  * Section actions ("Reset", "Clear") sit in the header but OUTSIDE the button,
  * so activating one never toggles the section.
  */
 export function section(title, children, { actions = [], id = null, collapsed = false } = {}) {
   const key = id || title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const saved = secState(key);
-  const open = saved != null ? saved === "1" : !collapsed;
+  const open = !collapsed;
   const bodyId = `sec-${key}-${++secSeq}`;
 
   const toggle = h("button", {
@@ -409,7 +404,6 @@ export function section(title, children, { actions = [], id = null, collapsed = 
   toggle.addEventListener("click", () => {
     const nowClosed = el.classList.toggle("closed");
     toggle.setAttribute("aria-expanded", String(!nowClosed));
-    try { localStorage.setItem(`tempo.sec.${key}`, nowClosed ? "0" : "1"); } catch {}
   });
   return el;
 }

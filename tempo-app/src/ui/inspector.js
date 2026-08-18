@@ -11,7 +11,7 @@
 // Rebuilds only when the STRUCTURE of what it shows changes; plain value
 // changes refresh fields in place so an active drag is never interrupted.
 
-import { h, icon, showMenu, confirmAction } from "./dom.js";
+import { h, icon, showMenu, confirmAction, tip } from "./dom.js";
 import {
   NumberField, SelectField, SwitchField, ColorField, TextField, SegmentedField,
   row, section, grid2, button,
@@ -93,6 +93,17 @@ export function buildInspector(app) {
   }
   function sw(get, set) {
     const f = SwitchField({ get, set });
+    fields.push(f);
+    return f;
+  }
+  /** A boolean param (0/1) as a chip + switch, so it sits in the params
+      grid like any other field instead of a bare unlabelled knob. */
+  function swField(name, tipText, get, set) {
+    const prefixEl = h("span", { class: "field-prefix" }, name);
+    tip(prefixEl, tipText);
+    const knob = SwitchField({ get: () => get() >= 0.5, set: (v) => set(v ? 1 : 0, false) });
+    const el = h("div", { class: "field switch-field with-prefix" }, prefixEl, knob.el);
+    const f = { el, refresh: knob.refresh };
     fields.push(f);
     return f;
   }
@@ -408,30 +419,38 @@ export function buildInspector(app) {
     // -- parameters --
     if (base) {
       let lastRegen = 0;
-      const cells = Object.entries(base.params).map(([key, spec]) => {
+      const cells = [];               // ungrouped — the main Parameters section
+      const groups = new Map();       // group title -> fields, its own section
+      for (const [key, spec] of Object.entries(base.params)) {
         const isRegen = base.regen.includes(key);
-        const f = num(
-          () => {
-            const c = getClip();
-            return c && c.params[key] !== undefined ? c.params[key] : spec.value;
-          },
-          (v, live) => {
-            mut((p) => {
-              const c = p.clips.find((x) => x.id === cid);
-              if (c) c.params[key] = v;
-            }, `pm.${key}.${cid}`, live);
-            if (isRegen) {
-              const now = performance.now();
-              if (!live || now - lastRegen > 90) {
-                lastRegen = now;
-                invalidateClip(cid);
-                invalidatePair();
-              }
+        const getVal = () => {
+          const c = getClip();
+          return c && c.params[key] !== undefined ? c.params[key] : spec.value;
+        };
+        const setVal = (v, live) => {
+          mut((p) => {
+            const c = p.clips.find((x) => x.id === cid);
+            if (c) c.params[key] = v;
+          }, `pm.${key}.${cid}`, live);
+          if (isRegen) {
+            const now = performance.now();
+            if (!live || now - lastRegen > 90) {
+              lastRegen = now;
+              invalidateClip(cid);
+              invalidatePair();
             }
-          },
-          { min: spec.min, max: spec.max, step: spec.step,
-            prefix: { text: key, tip: `${key} — double-click to reset` } },
-        );
+          }
+        };
+        const label = spec.label ?? key;
+        const prefix = { text: key, tip: `${key} — double-click to reset` };
+        // a param with named `options` is an enum (e.g. Merch's garment or
+        // an image's ink polarity) — a dropdown reads better than a bare
+        // index slider. `bool` (0/1) reads better as a switch than a slider.
+        const f = spec.options
+          ? sel(getVal, setVal, optIdx(spec.options), { prefix })
+          : spec.bool
+          ? swField(label, `${label} — double-click to reset`, getVal, setVal)
+          : num(getVal, setVal, { min: spec.min, max: spec.max, step: spec.step, prefix });
         const prefixEl = f.el.querySelector(".field-prefix");
         const syncOverride = () => {
           const c = getClip();
@@ -450,10 +469,19 @@ export function buildInspector(app) {
         };
         f.el.addEventListener("dblclick", clearOverride);
         f.el.addEventListener("contextmenu", (e) => { e.preventDefault(); clearOverride(); });
-        return f;
-      });
-      const rows = [];
-      for (let i = 0; i < cells.length; i += 2) rows.push(grid2(cells[i], cells[i + 1] ?? null));
+        if (spec.group) {
+          if (!groups.has(spec.group)) groups.set(spec.group, []);
+          groups.get(spec.group).push(f);
+        } else {
+          cells.push(f);
+        }
+      }
+      const toRows = (arr) => {
+        const r = [];
+        for (let i = 0; i < arr.length; i += 2) r.push(grid2(arr[i], arr[i + 1] ?? null));
+        return r;
+      };
+      const rows = toRows(cells);
       // an action that does nothing is worse than no action: Reset appears
       // only when there is an override to reset
       const overrides = Object.keys(getClip()?.params ?? {}).length;
@@ -474,6 +502,11 @@ export function buildInspector(app) {
         actions.push(resetBtn);
       }
       out.push(section("Parameters", rows, { actions, id: "clip-params" }));
+      for (const [title, groupFields] of groups) {
+        out.push(section(title, toRows(groupFields), {
+          id: `clip-params-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        }));
+      }
     } else {
       out.push(section("Parameters", [
         h("div", { class: "loading-row" }, icon("spinner", "spin"), "Sampling…"),

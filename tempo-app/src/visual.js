@@ -34,31 +34,6 @@ THREE.ColorManagement.enabled = false;
 
 // ---- config ------------------------------------------------------------------
 
-const STORAGE_KEY = "tempo.visual.v1";
-
-/* See the same shim in store.js: the old key is read once, written forward and
-   deleted, so it retires itself the first time the app opens. */
-const LEGACY_KEY = "hatchfusion.visual.v1";
-
-let migrated = false;
-
-function readLegacy() {
-  try {
-    const raw = localStorage.getItem(LEGACY_KEY);
-    if (raw) migrated = true;
-    return raw;
-  } catch { return null; }
-}
-
-/** Once the new key holds the config, the old one is dead weight — drop it
-    even though nothing read from it this time. Otherwise a browser that
-    migrated before keeps the stale entry forever. */
-function retireLegacyIfSuperseded() {
-  try {
-    if (localStorage.getItem(STORAGE_KEY)) localStorage.removeItem(LEGACY_KEY);
-  } catch {}
-}
-
 function defaultConfig() {
   return {
     version: 1,
@@ -77,61 +52,7 @@ function defaultConfig() {
   };
 }
 
-let config = loadConfig();
-
-function loadConfig() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? readLegacy();
-    if (raw) {
-      const p = JSON.parse(raw);
-      if (p && p.version === 1) {
-        const d = defaultConfig();
-        const GONE = new Set(["mode:moire", "asset:newtons-cradle",
-          "asset:shape-cylinder", "asset:shape-cone", "asset:shape-sphere",
-          "asset:shape-prism", "asset:shape-pyramid",
-          "mode:find-sway", "mode:arrange-bloom"]);
-        const scene = { ...d.scene, ...p.scene };
-        // pre-mosaic house thresholds -> tuned quadrant-era values
-        if (scene.blockLo === 2.0 && scene.blockHi === 4.0) {
-          scene.blockLo = d.scene.blockLo;
-          scene.blockHi = d.scene.blockHi;
-        }
-        return {
-          version: 1,
-          comp: { ...d.comp, ...p.comp },
-          target: GONE.has(p.target) ? d.target : (p.target || d.target),
-          params: p.params || {},
-          scene,
-          export: { ...d.export, ...p.export },
-        };
-      }
-    }
-  } catch {}
-  return defaultConfig();
-}
-
-/* Forward-write the migrated config, then retire the old key — synchronously,
-   and only once `config` exists. Doing it inside loadConfig() looked tidier and
-   was a bug twice over: saveConfig() touches a `let` declared below it, so it
-   threw into loadConfig's own catch and silently fell back to defaults; and
-   deleting the old key before anything had written the new one would have lost
-   the work outright if the tab closed inside the save debounce. */
-if (migrated) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    localStorage.removeItem(LEGACY_KEY);
-  } catch {}
-} else {
-  retireLegacyIfSuperseded();
-}
-
-let saveTimer = 0;
-function saveConfig() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); } catch {}
-  }, 300);
-}
+const config = defaultConfig();
 
 // ---- gl boot -------------------------------------------------------------------
 
@@ -292,7 +213,6 @@ async function fallBackToPlate(message) {
   if (!assetLib.get(DEFAULT_PLATE.key)) return;
   config.target = `asset:${DEFAULT_PLATE.key}`;
   loadedPairKey = "";
-  saveConfig();
   refreshLabel();
   buildPanel();
   toast(message, { kind: "error", duration: 5200 });
@@ -348,7 +268,6 @@ function setTarget(t) {
   if (r.kind === "asset") ensureTarget(r.key);
   anim = { from: config.target, start: clock };
   config.target = t;
-  saveConfig();
   refreshLabel();
   buildPanel();          // the Parameters section follows the target
 }
@@ -576,7 +495,7 @@ const panelFoot = h("div", { class: "panel-foot" });
 panelMain.append(panelBody, panelFoot);
 panel.append(panelMain);
 
-function commit(relayout) { saveConfig(); if (relayout) layout(); }
+function commit(relayout) { if (relayout) layout(); }
 
 const sceneNum = (key, o, relayout = false) => NumberField({
   get: () => config.scene[key],
@@ -776,7 +695,7 @@ function adjustSection() {
     const cells = Object.entries(base.params).map(([key, spec]) => {
       const f = NumberField({
         get: () => (P[key] !== undefined ? P[key] : spec.value),
-        set: (v) => { P[key] = v; mark(); saveConfig(); },
+        set: (v) => { P[key] = v; mark(); },
         min: spec.min, max: spec.max, step: spec.step,
         prefix: { text: key, tip: `${key} — double-click to reset` },
       });
@@ -788,7 +707,6 @@ function adjustSection() {
       const reset = () => {
         if (P[key] === undefined) return;
         delete P[key];
-        saveConfig();
         f.refresh();
         prefixEl?.classList.remove("overridden");
         buildPanel();
@@ -815,7 +733,6 @@ function adjustSection() {
       });
       if (!yes) return;
       config.params[config.target] = {};
-      saveConfig();
       buildPanel();
     });
     actions.push(resetBtn);
@@ -1242,7 +1159,6 @@ window.__visual = {
   setTarget, buildPanel,
   // move the camera off home without synthesising a drag
   orbitTo: (x, y) => { camera.position.set(x, y, 3.2); controls.update(); },
-  save: () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); } catch {} },
   // export hooks, so the suite validates the same bytes a user downloads
   pngBlob,
   svg: svgText,

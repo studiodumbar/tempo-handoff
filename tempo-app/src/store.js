@@ -1,39 +1,13 @@
-// The project store — one plain-object project, a tiny event bus, an undo
+// The project store — one plain-object project, a tiny event bus, and an undo
 // stack of whole-project snapshots (projects are small; snapshotting whole is
-// simpler and safer than op inversion), and a debounced localStorage autosave.
+// simpler and safer than op inversion).
 //
 // Everything the timeline, inspector and exporter read lives in `project`.
-// Mutations go through `mutate(fn, label)` so undo + autosave + change events
-// stay automatic. Transient UI state (selection, playhead, zoom) lives in
+// Mutations go through `mutate(fn, label)` so undo + change events stay
+// automatic. Transient UI state (selection, playhead, zoom) lives in
 // `session` and is NOT undoable or persisted.
 
 import { MODE_BY_KEY } from "./modes.js";
-
-const STORAGE_KEY = "tempo.project.v1";
-
-/* The only thing left in the codebase carrying the previous product name, and
-   it is a compatibility shim rather than a mention: work autosaved under the
-   old key would be lost without it. It migrates ONCE — read, write forward,
-   delete — so it clears itself out of a browser the first time the app opens.
-   Safe to delete this and readLegacy() once everyone has opened the app. */
-const LEGACY_KEY = "hatchfusion.project.v1";
-
-function readLegacy(store) {
-  try {
-    const raw = localStorage.getItem(LEGACY_KEY);
-    if (raw) store._migrated = true;
-    return raw;
-  } catch { return null; }
-}
-
-/** Once the new key holds the project, the old one is dead weight — drop it
-    even though nothing read from it this time. Otherwise a browser that
-    migrated before keeps the stale entry forever. */
-function retireLegacyIfSuperseded() {
-  try {
-    if (localStorage.getItem(STORAGE_KEY)) localStorage.removeItem(LEGACY_KEY);
-  } catch {}
-}
 
 let _id = Math.floor(Date.now() % 1e7);
 export const uid = () => `id${(_id++).toString(36)}`;
@@ -211,7 +185,6 @@ class Store {
     this._subs = new Map();     // topic -> Set<fn>
     this._undo = [];
     this._redo = [];
-    this._saveTimer = 0;
   }
 
   on(topic, fn) {
@@ -239,7 +212,6 @@ class Store {
     this._coalesceKey = coalesce;
     fn(this.project);
     this.emit(topic);
-    this._scheduleSave();
   }
 
   /** End a coalescing run (pointer released) so the next edit snapshots. */
@@ -254,7 +226,6 @@ class Store {
     this._coalesceKey = null;
     this.emit("project");
     this.emit("history");
-    this._scheduleSave();
     return true;
   }
 
@@ -265,7 +236,6 @@ class Store {
     this._coalesceKey = null;
     this.emit("project");
     this.emit("history");
-    this._scheduleSave();
     return true;
   }
 
@@ -276,7 +246,6 @@ class Store {
     this.session.selection = null;
     this.session.time = 0;
     this.emit("project");
-    this._scheduleSave();
   }
 
   // ---- session (transient) ----
@@ -302,43 +271,6 @@ class Store {
     const s = this.session.selection;
     if (!s || s.type !== "kf") return null;
     return this.project.camera.kfs.find((k) => k.id === s.id) || null;
-  }
-
-  // ---- persistence ----
-  _scheduleSave() {
-    clearTimeout(this._saveTimer);
-    this._saveTimer = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.project));
-      } catch {}
-    }, 400);
-  }
-
-  loadAutosave() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY) ?? readLegacy(this);
-      if (!raw) return false;
-      const p = JSON.parse(raw);
-      if (p && p.version === 1 && Array.isArray(p.clips)) {
-        this.project = normalizeProject(p);
-        // forward-write SYNCHRONOUSLY before retiring the old key: the save
-        // debounce is 400ms, and a tab closed inside it would take the work
-        if (this._migrated) {
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.project));
-            localStorage.removeItem(LEGACY_KEY);
-          } catch {}
-        } else {
-          retireLegacyIfSuperseded();
-        }
-        return true;
-      }
-    } catch {}
-    return false;
-  }
-
-  clearAutosave() {
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
   }
 }
 

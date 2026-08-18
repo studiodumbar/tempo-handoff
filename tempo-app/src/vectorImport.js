@@ -7,7 +7,7 @@
 //   tone       0 = binary stipple · 1 = dot DENSITY carries the image's tone
 //   gamma      tone curve on the ink weight (dark-detail lift / crush)
 //   contrast   S-curve around mid before gamma
-//   ink        0 = dark pixels are ink · 1 = light pixels are ink (auto-set)
+//   ink        auto (this image's own guess) · dark is ink · light is ink
 //   bright     dot energy — pushes cells over the block threshold
 //   size/spin/tilt  placement transform (live, rigid)
 //
@@ -134,7 +134,8 @@ export async function imageModeFromFile(file, count) {
         tone:      { value: 0.7, min: 0, max: 1, step: 0.01 },
         gamma:     { value: 1.0, min: 0.25, max: 3, step: 0.05 },
         contrast:  { value: 1.0, min: 0.5, max: 2.5, step: 0.05 },
-        ink:       { value: autoInk, min: 0, max: 1, step: 1 },
+        ink:       { value: 0, min: 0, max: 2, step: 1,
+                     options: ["auto", "dark is ink", "light is ink"] },
         // noise-driven dropout — 0 keeps the full image, up toward 1 removes
         // ever more braille. Independent of threshold/tone. `grain` sets the
         // patch size: low = coarse chunks, high = fine speckle.
@@ -156,7 +157,7 @@ export async function imageModeFromFile(file, count) {
 
       gen(N, P) {
         // ink weight per pixel: polarity → contrast S → gamma
-        const inkLight = P.ink >= 0.5;
+        const inkLight = P.ink === 0 ? autoInk === 1 : P.ink === 2;  // 0 = auto
         const W = new Float32Array(w * hgt);
         const cdf = new Float64Array(w * hgt);
         let total = 0;

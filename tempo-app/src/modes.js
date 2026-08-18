@@ -1692,6 +1692,11 @@ export const MODES = [
     regen: ["turns", "radius", "height", "line", "blocks", "patch"],
     params: {
       speed:  { value: 0.16, min: -2, max: 2, step: 0.005 },
+      // a static offset under `speed`'s own travel — 0 leaves the head where
+      // `speed` alone puts it at t=0, raising it slides the whole train
+      // along the path before any motion is applied (parks it anywhere with
+      // speed at 0, or just re-times a moving train without touching speed)
+      position: { value: 0, min: 0, max: 1, step: 0.01 },
       train:  { value: 0.34, min: 0.02, max: 0.99, step: 0.01 },
       // how hard the carriages shrink behind the head. 1 is a plain falloff;
       // higher keeps the weight at the head and lets the tail run a long way
@@ -1724,7 +1729,7 @@ export const MODES = [
       for (let k = 0; k < 4; k++) matIdent(S.grp, k);   // the field does it all
       const b = P.bright;
       S.gbri.set([b, b, b, b]);
-      const head = (((t * P.speed) % 1) + 1) % 1;       // wraps, so no seam
+      const head = (((t * P.speed + P.position) % 1) + 1) % 1; // wraps, so no seam
       // trains rides in the span channel: an exact multiple of 8 with the
       // span (never more than 4) sitting under it
       const nTrains = Math.min(8, Math.max(1, Math.round(P.trains)));

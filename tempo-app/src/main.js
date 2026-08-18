@@ -87,6 +87,7 @@ async function ensureAsset(key) {
   const entry = assetLib.get(key);
   if (!entry || entry.state === "ready" || entry.state === "loading") return;
   if (entry.shipped) return loadShippedImage(entry);
+  if (entry.customLoad) return loadCustomAsset(entry);
   if (!entry.def) return;
   entry.state = "loading";
   libChanged();
@@ -100,6 +101,24 @@ async function ensureAsset(key) {
   }
   libChanged();
   store.emit("project");           // clips waiting on this asset re-evaluate
+}
+
+/** An asset with a bespoke loader (Merch: several rasters behind one
+    dropdown, rather than one URL) — same idle/loading/ready/error dance as
+    everything else in the library. */
+async function loadCustomAsset(entry) {
+  entry.state = "loading";
+  libChanged();
+  try {
+    entry.mode = await entry.customLoad();
+    entry.state = "ready";
+  } catch (err) {
+    console.error(err);
+    entry.state = "error";
+    toast(`Could not load ${entry.label} — ${err.message || err}`, { kind: "error" });
+  }
+  libChanged();
+  store.emit("project");
 }
 
 /** A PNG / JPG / SVG becomes a re-samplable image asset, exactly as on the
@@ -126,11 +145,96 @@ async function registerImage(file) {
   }
 }
 
-/* No shipped images either — the long-sleeve plate went with the models. The
-   default plate on the Visual surface is the one built-in that remains, and it
-   lives there rather than in this library. Imports still work exactly as
-   before: they register straight into assetLib. */
 const SHIPPED_IMAGES = [];
+
+// ---- Merch: one asset, several garments behind a dropdown -------------------
+// Every garment is its own traced image mode (own raster, own dot layout) —
+// `garment` picks which one gen()/update()/photo delegate to. Every OTHER
+// param (threshold, cellReveal, …) is a single shared dial that applies
+// whichever garment is showing, so retuning one doesn't mean retuning three.
+
+const MERCH_GARMENTS = [
+  { key: "hoodie", label: "Hoodie", url: "./plates/hoodie.png" },
+  { key: "bag", label: "Bag", url: "./plates/bag.png" },
+  { key: "longsleeve", label: "Longsleeve", url: "./plates/longsleeve.png" },
+  { key: "cap", label: "Cap", url: "./plates/cap.png" },
+  { key: "water", label: "Water", url: "./plates/water.png" },
+];
+const MERCH_DEFAULT_GARMENT = 2;   // longsleeve — the one already tuned
+
+async function loadMerchMode() {
+  const subModes = await Promise.all(MERCH_GARMENTS.map(async (g) => {
+    const res = await fetch(g.url);
+    if (!res.ok) throw new Error(`${g.label}: ${res.status}`);
+    const file = new File([await res.blob()], g.url.split("/").pop(), { type: "image/png" });
+    return imageModeFromFile(file, engine.N);
+  }));
+  const base = subModes[MERCH_DEFAULT_GARMENT];
+  const garmentAt = (P) => subModes[Math.round(P?.garment ?? MERCH_DEFAULT_GARMENT)];
+  return {
+    key: "asset:merch",
+    label: "Merch",
+    id: 18,                        // image field: rigid + block license
+    image: true,
+    regen: [...base.regen, "garment"],
+    params: {
+      ...base.params,
+      garment: { value: MERCH_DEFAULT_GARMENT, min: 0, max: subModes.length - 1, step: 1,
+                 options: MERCH_GARMENTS.map((g) => g.label) },
+      // no ink override on purpose: it rides base.params on "auto", and each
+      // garment's own gen() resolves that against its own pixels. Pinning it
+      // to a number here would hand the default garment's polarity to all six
+      // — a dark bag under the longsleeve's light-is-ink traces to nothing.
+      // photo: 1 — settled, the trace hands off to the photograph rather
+      // than sitting in braille. cellReveal — that hand-off builds cell by
+      // cell over the terminal's own grid instead of a plain cross-fade.
+      photo: { value: 1, min: 0, max: 1, step: 0.01 },
+      cellReveal: { value: 1.4, min: 0, max: 4, step: 0.05 },
+      // seconds of clipT to wait through before the build starts at all
+      cellDelay: { value: 0, min: 0, max: 4, step: 0.05 },
+      // each band's share of both the rows and the reveal time — equal
+      // weights split evenly; 1x1 starts ahead so it doesn't flash past
+      cell1x1: { value: 2, min: 0.1, max: 6, step: 0.1 },
+      cell2x2: { value: 1, min: 0.1, max: 6, step: 0.1 },
+      cell3x3: { value: 1, min: 0.1, max: 6, step: 0.1 },
+      cell4x4: { value: 1, min: 0.1, max: 6, step: 0.1 },
+      cell5x5: { value: 1, min: 0.1, max: 6, step: 0.1 },
+      // how far each band's window bleeds into its neighbours' — 0 seals
+      // them (2x2 waits for every 1x1 first), higher blends the hand-off
+      cellOverlap: { value: 0.4, min: 0, max: 1, step: 0.02 },
+      // 0: the base print — a ruler-straight seam between band sizes.
+      // Raise it to feather that seam into an organic wobble instead
+      cellWobble: { value: 0, min: 0, max: 1, step: 0.02 },
+      // scatters the sweep's order — 0 clean sweep, 1 fully random
+      cellStagger: { value: 0.7, min: 0, max: 1, step: 0.01 },
+      // how far past the PNG's cutout outline a popped cell keeps clearing,
+      // in GLYPH CELLS — a glyph holding an edge dot overhangs the silhouette,
+      // and without this its leftover sticks to the garment's sides. The
+      // overhang IS a cell, so the radius is derived from the live cell rather
+      // than set in raster px: one number now holds for every garment, size
+      // and comp. 1 covers the cell the dot sits in, and the block pass's
+      // hotSpread dilation reaches about half a cell past that
+      cellBleed: { value: 1.5, min: 0, max: 4, step: 0.1 },
+      // the crisp photo's OWN tone — a dark, low-key source photographed
+      // against the scene's near-black background loses its shadow detail
+      // entirely; these dial the PHOTO back, independent of the trace's
+      // own threshold/gamma/contrast
+      photoBrightness: { value: 1, min: 0.2, max: 3, step: 0.02, group: "Photo display" },
+      photoContrast: { value: 1, min: 0.2, max: 3, step: 0.02, group: "Photo display" },
+      photoGamma: { value: 1, min: 0.2, max: 3, step: 0.02, group: "Photo display" },
+    },
+    gen(N, P) { return garmentAt(P).gen(N, P); },
+    update(S, P, t) { return garmentAt(P).update(S, P, t); },
+    get photo() { return garmentAt(this._values).photo; },
+  };
+}
+
+function registerMerch() {
+  if (assetLib.has("merch")) return;
+  assetLib.set("merch", { key: "merch", label: "Merch", custom: "image",
+                          state: "idle", mode: null, customLoad: loadMerchMode });
+  libChanged();
+}
 
 /** Await an asset entry until it is genuinely ready (ensureAsset returns
     early when another caller is already loading it). */
@@ -186,8 +290,7 @@ async function matchImageToAsset(imgMode, assetKey) {
 }
 
 /** Shipped images are named in the library from the first frame and traced on
-    first use. longsleeve.png is 2.7 MB and its GLB counterpart is another
-    1.4 MB through the size calibration — a cost most sessions never spend. */
+    first use — nothing is fetched until one is actually chosen. */
 function registerShippedImages() {
   for (const def of SHIPPED_IMAGES) {
     if (assetLib.has(def.key)) continue;
@@ -702,6 +805,7 @@ const actions = {
 };
 
 registerShippedImages();
+registerMerch();
 
 const app = {
   store,
@@ -918,6 +1022,13 @@ function renderFrame(T, dt) {
   // engine the project's view BEFORE drive so pair loads key correctly
   engine.frameFov = scn.fov;
   engine.frameAspect = p.comp.width / p.comp.height;
+  engine.termCols = terminal.cols;
+  engine.termRows = terminal.rows;
+  // a glyph cell is a tall rectangle in actual pixels (8x16 house default),
+  // not a square — a cell-reveal block needs MORE cells wide than tall to
+  // read as square on screen
+  engine.termCellAspect = terminal.cellH / Math.max(1e-4, terminal.cellW);
+  engine.compBg = p.comp.bg;
   engine.rotExtra = whipAngle(p.clips, Ts);
   drive(engine, p.clips, Ts);
   applySceneUniforms();
@@ -925,7 +1036,7 @@ function renderFrame(T, dt) {
   // tile by tile, everything else fades it at arrival; the dots dissolve
   // only once settled either way
   const photoState = photoOverlay.evaluate(engine);
-  engine.material.uniforms.uPhotoB.value = photoState.alpha;
+  engine.material.uniforms.uPhotoB.value = photoState.dotFade ?? photoState.alpha;
   engine.material.uniforms.uPhotoFlip.value = photoState.flip ? 1 : 0;
   occlusion.update(renderer, camera, scn.solidity);
 
@@ -1064,9 +1175,7 @@ function starterProject() {
   return p;
 }
 
-if (!store.loadAutosave()) {
-  store.project = starterProject();
-}
+store.project = starterProject();
 afterProjectLoad();
 
 const inspectorPanel = buildInspector(app);
