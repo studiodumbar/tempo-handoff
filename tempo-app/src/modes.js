@@ -16,6 +16,7 @@
 // here knows how to transition — that is the particle engine's job.
 
 import { expoInOut, smooth, bezierEase, snapEase } from "./easing.js";
+import { starEmit } from "./starEmit.js";
 
 const TAU = Math.PI * 2;
 
@@ -803,7 +804,7 @@ export const MODES = [
       bright: { value: 3.4, min: 0, max: 6, step: 0.05 },
       rest:   { value: 0.42, min: 0, max: 1.2, step: 0.01 },
       bulge:  { value: 0.08, min: 0, max: 0.25, step: 0.005 },
-      spin:   { value: 0, min: -1, max: 1, step: 0.01 },
+      spin:   { value: 0.25, min: -1, max: 1, step: 0.01 },
       lat:    { value: 10, min: 6, max: 16, step: 1 },
       lon:    { value: 18, min: 8, max: 28, step: 1 },
     },
@@ -1470,25 +1471,7 @@ export const MODES = [
     update(S, P, t) { starFlowUpdate(S, P, t, 10); },
   },
 
-  // -- STAR EMIT — every arm fires one block, crossing to tip ---------------
-  // The simplest emission: each arm spawns a single block at the crossing;
-  // the blocks ride their lines outward on the house ease-in-out-expo and
-  // die at the tips — then the next emission. `cycle` = seconds between
-  // emissions (`loops` fires that many per cycle). `stagger` desyncs the
-  // arms by a per-line hash — 0 fires in perfect unison, 1 spreads the
-  // emissions across the whole cycle.
-  {
-    key: "star-emit", label: "star emit", statusName: "SPARKING", id: 39,
-    regen: STAR_LIFE_REGEN,
-    params: starLifeParams({ "chip lines": 12, stations: 10, size: 0.028,
-                             boost: 3.0, patch: 11, halo: 12, cycle: 3,
-                             spin: 0.12, window: 0.5, loops: 1,
-                             stagger: { value: 0, min: 0, max: 1, step: 0.01 } }),
-    gen(N, P) { return starLifeXGen(N, P, starAuxWeave); },
-    update(S, P, t) {
-      starFlowUpdate(S, P, t, 11, Math.round(Math.min(1, Math.max(0, P.stagger ?? 0)) * 99));
-    },
-  },
+  starEmit,
 
   // -- HELIX RUN — separated chips gliding up the strand (field 22) ----------
   // The helix drawn as plain dots, with a train of SEPARATED block seeds

@@ -676,6 +676,32 @@ const VERT = /* glsl */ `
         b *= clamp(k38, 0.05, 1.9) * (scl38 <= 0.001 ? 0.0 : pow(scl38, 0.6));
         hot = prm.w * min(k38, 1.2) * scl38;
       }
+    } else if (modeId == 40) {
+      gi = 0;
+      float cs = cos(prm.x), sn = sin(prm.x);
+      vec3 tip = vec3(p0.x * cs + p0.z * sn, p0.y, -p0.x * sn + p0.z * cs);
+      p = tip;
+      if (nrm.x >= 1.0) {
+        float phase = fract(prm2.y * aux + fract(nrm.x) * prm2.z);
+        float fade = max(prm2.w, 0.001);
+        float envelope = smoothstep(0.0, fade, phase)
+          * (1.0 - smoothstep(1.0 - fade * 0.1, 1.0, phase));
+        vec3 centre = tip * phase;
+        float distanceToEye = length(cameraPosition - centre);
+        float depth = (length(cameraPosition) - distanceToEye) / max(prm2.x, 0.001);
+        float scale = clamp(exp2(depth * prm.z), 0.08, 2.8);
+        vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+        vec3 up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+        vec3 direction = normalize(tip);
+        vec2 screen = vec2(dot(direction, right), dot(direction, up));
+        vec2 across = vec2(-screen.y, screen.x) / max(length(screen), 0.001);
+        p = centre + direction * nrm.y * envelope
+          + (right * across.x + up * across.y) * nrm.z * (prm.y * scale * envelope * 0.5);
+        b *= clamp(scale, 0.05, 1.7) * envelope;
+        hot = prm.w * min(scale, 1.0) * envelope;
+      } else {
+        b *= 0.85;
+      }
     } else if (modeId == 39) {              // star flow: endless constant-
       gi = 0;                               // glide block motion — the rays
       // stay put, the BLOCKS move; every loop is seamless at any spin.
@@ -2118,6 +2144,34 @@ export class ParticleEngine {
       out[2] = sz + (rz * ny + uz * nz) * side;
       return cl(k, 0.05, 1.9) * (scl <= 0.001 ? 0 : Math.pow(scl, 0.6));
     }
+    if (id === 40) {
+      const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+      const fract = v => v - Math.floor(v);
+      const smooth = v => { const q = clamp(v, 0, 1); return q * q * (3 - 2 * q); };
+      const cs = Math.cos(prm[0]), sn = Math.sin(prm[0]);
+      out[0] = x * cs + z * sn; out[1] = y; out[2] = -x * sn + z * cs;
+      if (nx < 1) return 0.85;
+      const phase = fract(prm2[1] * aux + fract(nx) * prm2[2]);
+      const fade = Math.max(prm2[3], 0.001);
+      const envelope = smooth(phase / fade) * (1 - smooth((phase - 1 + fade * 0.1) / (fade * 0.1)));
+      for (let k = 0; k < 3; k++) out[k] *= phase;
+      const cp = this.camera?.position ?? { x: 0, y: 0, z: 3.55 };
+      const distance = Math.hypot(cp.x - out[0], cp.y - out[1], cp.z - out[2]);
+      const depth = (Math.hypot(cp.x, cp.y, cp.z) - distance) / Math.max(prm2[0], 0.001);
+      const scale = clamp(2 ** (depth * prm[2]), 0.08, 2.8);
+      const side = prm[1] * scale * envelope * 0.5;
+      const e = this.camera?.matrixWorldInverse.elements ?? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+      const length = Math.max(Math.hypot(x, y, z), 0.001);
+      const dx = (x * cs + z * sn) / length, dy = y / length, dz = (-x * sn + z * cs) / length;
+      const sx = dx * e[0] + dy * e[4] + dz * e[8];
+      const sy = dx * e[1] + dy * e[5] + dz * e[9];
+      const screenLength = Math.max(Math.hypot(sx, sy), 0.001);
+      const ax = -sy / screenLength, ay = sx / screenLength;
+      out[0] += dx * ny * envelope + (e[0] * ax + e[1] * ay) * nz * side;
+      out[1] += dy * ny * envelope + (e[4] * ax + e[5] * ay) * nz * side;
+      out[2] += dz * ny * envelope + (e[8] * ax + e[9] * ay) * nz * side;
+      return clamp(scale, 0.05, 1.7) * envelope;
+    }
     if (id === 39) {                        // star flow — JS mirror
       const eio = EASE_FNS[0];
       const cl = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -2388,14 +2442,14 @@ export class ParticleEngine {
     const isGrid = (id) => (id >= 10 && id <= 14) || id === 17 ||
                            (id >= 19 && id <= 24) || id === 26 ||
                            id === 28 || id === 29 || id === 32 || id === 35 ||
-                           id === 36 || id === 37 || id === 38 || id === 39;
+                           id === 36 || id === 37 || id === 38 || id === 39 || id === 40;
     const gridA = isGrid(idA), gridB = isGrid(idB);
     // fields whose aux packs an index (line, cell, ray, family) rather than a
     // group id — they force group 0, exactly as the shader branches do
     const flat = (id) => id === 11 || id === 14 || id === 19 || id === 20 ||
                          id === 22 || id === 23 || id === 24 || id === 26 ||
                          id === 28 || id === 29 || id === 32 || id === 35 ||
-                         id === 36 || id === 37 || id === 38 || id === 39;
+                         id === 36 || id === 37 || id === 38 || id === 39 || id === 40;
     for (let i = 0; i < N; i++) {
       const local = Math.min(1, Math.max(0,
         (this.prog - keys[i] * this.spread) / Math.max(1e-4, 1 - this.spread)));
