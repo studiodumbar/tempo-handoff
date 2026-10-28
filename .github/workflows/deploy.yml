@@ -1,0 +1,16 @@
+# Puts this tool live on every save. The real work happens in
+# studiodumbar/tool-warehouse, so nothing here needs changing.
+name: Deploy to Vercel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: studiodumbar/tool-warehouse/.github/workflows/deploy-tool.yml@main
+    secrets: inherit
+    permissions:
+      contents: read
+      deployments: write
