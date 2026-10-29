@@ -88,6 +88,8 @@ Projects autosave to localStorage and round-trip as `.tempo.json`. Custom
 imports live in memory only — re-import them after opening a project that
 references one.
 
+Motion's Merch and imported images use the shared [image reveal defaults](presets/tempo-reveal-settings.json): a 1.3-second cell-by-cell reveal of the source photograph. The JSON is loaded directly by [imageReveal.js](src/imageReveal.js). Tune its controls in the clip inspector; saved clip overrides take precedence. Visual still opens images as braille.
+
 ## Development
 
 ```

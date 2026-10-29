@@ -1,0 +1,14 @@
+{
+  "photo": 1,
+  "cellReveal": 1.3,
+  "cellDelay": 0,
+  "cell1x1": 1,
+  "cell2x2": 1,
+  "cell3x3": 1,
+  "cell4x4": 1,
+  "cell5x5": 1,
+  "cellOverlap": 0.24,
+  "cellWobble": 0,
+  "cellStagger": 0.42,
+  "cellBleed": 1.5
+}

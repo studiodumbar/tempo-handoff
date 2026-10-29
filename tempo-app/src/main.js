@@ -13,6 +13,7 @@ import { OcclusionPass } from "./occlusion.js";
 import { MODE_BY_KEY, featuredModes, paramValues } from "./modes.js";
 import { ASSET_DEFS, loadAssetMode, assetModeFromBuffer } from "./assets.js";
 import { imageModeFromFile } from "./vectorImport.js";
+import { imageRevealParams } from "./imageReveal.js";
 import { PhotoOverlay } from "./photo.js";
 import { store, makeClip, defaultProject, normalizeProject, uid } from "./store.js";
 import { expoInOut } from "./easing.js";
@@ -129,6 +130,7 @@ async function registerImage(file) {
   const t = toast(`Tracing ${file.name}…`, { kind: "busy", duration: 0 });
   try {
     const mode = await imageModeFromFile(file, engine.N);
+    Object.assign(mode.params, await imageRevealParams());
     let key = (mode.key || "").replace(/^asset:/, "")
       || `image-${mode.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
     while (assetLib.has(key)) key += "-2";
@@ -185,36 +187,7 @@ async function loadMerchMode() {
       // garment's own gen() resolves that against its own pixels. Pinning it
       // to a number here would hand the default garment's polarity to all six
       // — a dark bag under the longsleeve's light-is-ink traces to nothing.
-      // photo: 1 — settled, the trace hands off to the photograph rather
-      // than sitting in braille. cellReveal — that hand-off builds cell by
-      // cell over the terminal's own grid instead of a plain cross-fade.
-      photo: { value: 1, min: 0, max: 1, step: 0.01 },
-      cellReveal: { value: 1.4, min: 0, max: 4, step: 0.05 },
-      // seconds of clipT to wait through before the build starts at all
-      cellDelay: { value: 0, min: 0, max: 4, step: 0.05 },
-      // each band's share of both the rows and the reveal time — equal
-      // weights split evenly; 1x1 starts ahead so it doesn't flash past
-      cell1x1: { value: 2, min: 0.1, max: 6, step: 0.1 },
-      cell2x2: { value: 1, min: 0.1, max: 6, step: 0.1 },
-      cell3x3: { value: 1, min: 0.1, max: 6, step: 0.1 },
-      cell4x4: { value: 1, min: 0.1, max: 6, step: 0.1 },
-      cell5x5: { value: 1, min: 0.1, max: 6, step: 0.1 },
-      // how far each band's window bleeds into its neighbours' — 0 seals
-      // them (2x2 waits for every 1x1 first), higher blends the hand-off
-      cellOverlap: { value: 0.4, min: 0, max: 1, step: 0.02 },
-      // 0: the base print — a ruler-straight seam between band sizes.
-      // Raise it to feather that seam into an organic wobble instead
-      cellWobble: { value: 0, min: 0, max: 1, step: 0.02 },
-      // scatters the sweep's order — 0 clean sweep, 1 fully random
-      cellStagger: { value: 0.7, min: 0, max: 1, step: 0.01 },
-      // how far past the PNG's cutout outline a popped cell keeps clearing,
-      // in GLYPH CELLS — a glyph holding an edge dot overhangs the silhouette,
-      // and without this its leftover sticks to the garment's sides. The
-      // overhang IS a cell, so the radius is derived from the live cell rather
-      // than set in raster px: one number now holds for every garment, size
-      // and comp. 1 covers the cell the dot sits in, and the block pass's
-      // hotSpread dilation reaches about half a cell past that
-      cellBleed: { value: 1.5, min: 0, max: 4, step: 0.1 },
+      ...await imageRevealParams(),
       // the crisp photo's OWN tone — a dark, low-key source photographed
       // against the scene's near-black background loses its shadow detail
       // entirely; these dial the PHOTO back, independent of the trace's
