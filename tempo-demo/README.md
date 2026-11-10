@@ -4,6 +4,9 @@ This folder is the website interaction reference. The procedural animation sourc
 
 ## Animation updates
 
+**Final helix → merch grid, option 1:** [handoff folder and integration guide](helix-grid-handoff/README.md).
+Copy that folder into the website. It includes the approved settings, renderer dependencies and a standalone preview. Start with [index.js](helix-grid-handoff/index.js).
+
 **Star emit** has been rebuilt from the supplied recording, with six rotating lines and staggered outward block trails.
 
 - [Geometry and editable defaults](../tempo-app/src/starEmit.js).

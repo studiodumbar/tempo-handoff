@@ -1,9 +1,14 @@
 {
   "name": "Tempo App",
-  "description": "Create braille and block graphics in Visual, sequence animations in Motion, and export stills, vectors, 3D reliefs or video.",
+  "description": "Create braille and block graphics, sequence animations, export stills and video, and hand off the Tempo helix-to-merch reveal.",
   "type": "tool",
   "client": "Tempo",
-  "tags": ["generative", "animation", "svg export", "video export"],
+  "tags": [
+    "generative",
+    "animation",
+    "svg export",
+    "video export"
+  ],
   "author": "Jack & Valère",
   "status": "active"
 }
